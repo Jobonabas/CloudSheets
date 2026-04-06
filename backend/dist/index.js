@@ -4,6 +4,10 @@ const server = fastify();
 server.get('/ping', async (request, reply) => {
     return 'pong\n';
 });
+//simple Health Check
+server.get('/health', async (request, reply) => {
+    return { status: 'ok' };
+});
 server.listen({ port: 8080 }, (err, address) => {
     if (err) {
         console.error(err);
