@@ -1,5 +1,21 @@
+## Functional Requirements
 
-## Tech-Stack
+#### **Create and manage sheets**
+   - The system shall display an overview of the users sheets.
+   - Each user shall be able to manage their sheets (deletion, creation, naming).
+
+#### **User Accounts**
+   - Users shall be able to register with a valid email address and password.
+   - Users shall be able to log in and out of the system with their credentials.
+   - Users can enable Multi-Factor-Authentification for their account.
+   - Sheets shall only be visible to the respective user.
+
+#### **Collaborative and realtime working**
+   - Users can invite other users to collaborate and manage/edit a sheet together in realtime.
+
+---
+
+## Technical Requirements
 
 ### Frontend
 | Technologie | Zweck | Begründung |
@@ -37,3 +53,5 @@
 | **GitHub Actions** | CI/CD Pipeline | Build → Test → Deploy automatisiert bei Push auf main |
 | **Docker** | Containerisierung | Backend als Container, reproduzierbare Builds |
 | **GitHub** | Source Control | Code, Issues, Project Board, Actions — alles an einem Ort |
+
+
