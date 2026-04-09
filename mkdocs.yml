@@ -1,62 +1,65 @@
-site_name: CloudSheets Wiki
-site_dir: 'public/'
-docs_dir: 'docs'
-
-nav: 
-  - 🏠 Home: 'index.md'
-  - 💻 Architecture: 'architecture.md'
-  - Tech-Stack: 'tech-stack.md'
-  - Requirements: 'requirements.md'
-  - ADR: 'ADR.md'
-  - API: 'API.md'
-
+site_name: CloudSheets Docs
+site_description: Real-time collaborative spreadsheet - project documentation
 repo_url: https://github.com/Jobonabas/CloudSheets
+repo_name: CollabSheet
 
-# theme:
-#   name: mkdocs
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - navigation.tracking
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
 
-#   icon:
-#     repo: fontawesome/brands/github
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
 
-#   palette: 
-#     # Palette toggle for light mode
-#     - scheme: default
-#       toggle:
-#         icon: material/brightness-7 
-#         name: Switch to dark mode
-#     # Palette toggle for dark mode
-#     - scheme: slate
-#       toggle:
-#         icon: material/brightness-4
-#         name: Switch to light mode
-  
-#   features:
-#     ...
-#     - content.code.copy
+plugins:
+  - search
 
-# markdown_extensions:
-#   # For code highlightning
-#   - pymdownx.highlight:
-#       anchor_linenums: true
-#       line_spans: __span
-#       pygments_lang_class: true
-#   - pymdownx.inlinehilite
-#   - pymdownx.snippets
-#   - pymdownx.superfences
-#   - admonition
-#   - pymdownx.details
-#   - attr_list
-#   - md_in_html
-
-# extra: 
-#   social:
-#     - icon: fontawesome/brands/twitter
-#       link: https://twitter.com/yodamad03
-#     - icon: fontawesome/brands/gitlab
-#       link: https://gitlab.com/yodamad
-#     - icon: fontawesome/brands/linkedin
-#       link: https://www.linkedin.com/in/matthieu-vincent-ab25064/
-#     - icon: fontawesome/brands/github
-#       link: https://github.com/yodamad
-#     - icon: fontawesome/brands/docker
-#       link: https://hub.docker.com/r/yodamad
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Tech Stack: tech-stack.md
+  - Requirements: requirements.md
+  - ADR: ADR.md
+  - API: API.md
