@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cloudsheet}
+      POSTGRES_USER: ${POSTGRES_USER:-cloudsheet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev123}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
