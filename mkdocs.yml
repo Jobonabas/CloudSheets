@@ -7,14 +7,14 @@ theme:
   name: material
   palette:
     - scheme: slate
-      primary: teal
-      accent: cyan
+      primary: indigo
+      accent: teal
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
     - scheme: default
-      primary: teal
-      accent: cyan
+      primary: indigo
+      accent: teal
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
@@ -40,7 +40,11 @@ theme:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
