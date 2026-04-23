@@ -2,38 +2,33 @@
 ## Tech-Stack
 
 ### Frontend
-| Technologie | Zweck | Begründung |
-|---|---|---|
-| **React + Vite** | SPA Framework | Schnelles Dev-Setup, kein SSR nötig, großes Ökosystem |
-| **Handsontable CE** oder **AG Grid CE** | Spreadsheet-UI | Fertige Grid-Komponente mit Cell-Editing, spart Wochen Eigenentwicklung |
-| **Yjs** | CRDT-Bibliothek (Client) | Conflict-free Realtime Sync, JS-nativ, bewährt |
-| **y-websocket** | WebSocket-Provider | Verbindet Yjs mit dem Backend, handled Reconnects automatisch |
-| **Clerk** oder **Auth0 Free** | Auth SDK (Frontend) | Login/Signup/MFA UI-Komponenten out of the box |
+| Technology        | Purpose         | Reasoning |
+|-------------------|-----------------|-----------|
+| **React + Vite**  | SPA Framework   | Standard for performant UIs; fast HMR (Hot Module Replacement). |
+| **AG Grid CE**    | Spreadsheet UI  | High feature density (editing, filtering) with minimal custom work. Premade (saves effort). |
+| **Yjs**           | CRDT Engine     | Enables real-time collaborative editing. |
+| **y-websocket**   | Provider        | WebSocket connection for Yjs. |
 
 ### Backend
-| Technologie | Zweck | Begründung |
-|---|---|---|
-| **Node.js + Fastify** | API-Server | Performanter als Express, TypeScript-nativ, JSON Schema Validation |
-| **y-websocket Server** | Realtime Sync Server | Empfängt CRDT-Deltas, broadcasted an alle Clients eines Sheets |
-| **PostgreSQL** | Persistente Daten | User-Metadaten, Sheet-Metadaten, Access Rights, Yjs-Doc-Snapshots |
-| **Redis** | Pub/Sub + Caching | Horizontales Scaling der WebSocket-Server, Session-Cache |
-| **Clerk/Auth0** | Auth Backend | JWT-Validierung, User Management, MFA — kein Eigenbau nötig |
+| Technology            | Purpose      | Reasoning |
+|-----------------------|-------------|-----------|
+| **Node.js + Fastify** | API Server  | High throughput for WebSockets, TypeScript-native, validated schemas. |
+| **y-websocket Server**| Sync Engine | Lightweight backend module for Yjs (single-instance). |
+| **PostgreSQL**        | Persistence | Stores user data and Yjs doc snapshots. |
+| **AWS Cognito**       | Auth Service| Part of AWS, handles authentication. |
 
 ### Cloud (AWS)
-| Service | Zweck | Begründung |
-|---|---|---|
-| **App Runner** | Backend-Container Hosting | Simpler als ECS/Fargate, Auto-Scaling, HTTPS out of the box |
-| **S3 + CloudFront** | Frontend Hosting | Statische React-SPA, global gecacht, billig |
-| **RDS PostgreSQL** | Managed Datenbank | Backups, Patching, Monitoring automatisch (Free Tier: db.t3.micro) |
-| **ElastiCache Redis** | Managed Redis | Pub/Sub Layer für WebSocket-Scaling (Free Tier: cache.t3.micro) |
-| **ECR** | Container Registry | Docker Images für App Runner |
-| **CloudWatch** | Monitoring + Logging | Dashboards, Alerts, Log Aggregation |
-| **Secrets Manager** | Credentials | DB-Passwörter, API-Keys — kein Plaintext in Environment Variables |
+| Service           | Purpose           | Reasoning |
+|-------------------|-------------------|-----------|
+| **App Runner**    | Container Hosting | Core application, automates SSL and deployment directly from ECR. |
+| **RDS PostgreSQL**| Managed DB        | Core service, data storage; Free Tier (db.t3.micro). |
+| **S3**            | SPA Hosting       | Hosts static assets (frontend). |
+| **SSM Parameter Store** | Config & Secrets | Free, simple management of DB credentials and API keys (instead of Secrets Manager). |
+| **ECR**           | Image Registry    | Required for container deployments on App Runner. |
 
 ### DevOps / IaC
-| Technologie | Zweck | Begründung |
-|---|---|---|
-| **AWS CDK (TypeScript)** | Infrastructure as Code | Gleiche Sprache wie App-Code, Type Safety, Auto-IAM |
-| **GitHub Actions** | CI/CD Pipeline | Build → Test → Deploy automatisiert bei Push auf main |
-| **Docker** | Containerisierung | Backend als Container, reproduzierbare Builds |
-| **GitHub** | Source Control | Code, Issues, Project Board, Actions — alles an einem Ort |
+| Technology         | Purpose                | Reasoning |
+|--------------------|------------------------|-----------|
+| **AWS CDK (TS)**   | Infrastructure as Code | Entire infrastructure as code, reproducible and type-safe (TypeScript). |
+| **GitHub Actions** | CI/CD                  | Automates build process and push to ECR/App Runner. |
+| **Docker**         | Containerization       | Test containers locally (backend, database, etc). |
