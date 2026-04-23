@@ -20,9 +20,6 @@ The project documentation is built with [MkDocs](https://www.mkdocs.org/).
 ---
 
 ## Backend (Node.js + Fastify)
-...
-
-## Backend (Node.js + Fastify)
 
 ### Build & Start
 
