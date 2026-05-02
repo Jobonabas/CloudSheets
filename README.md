@@ -57,6 +57,11 @@ To remove all AWS resources created by the CDK stack (e.g., after testing):
 cd infra/hello-cdk
 cdk destroy
 ```
+to destroy all stack:
+```bash
+cd infra/hello-cdk
+cdk destroy --all
+```
 
 This will delete all resources, including S3 buckets (and their contents, if configured).
 
