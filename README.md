@@ -47,3 +47,16 @@ The project documentation is built with [MkDocs](https://www.mkdocs.org/).
 #### Ping
 **GET** `/ping`
 
+---
+
+## Clean Up AWS Resources
+
+To remove all AWS resources created by the CDK stack (e.g., after testing):
+
+```bash
+cd infra/hello-cdk
+cdk destroy
+```
+
+This will delete all resources, including S3 buckets (and their contents, if configured).
+
