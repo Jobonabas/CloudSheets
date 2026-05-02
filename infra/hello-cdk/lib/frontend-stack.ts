@@ -19,8 +19,11 @@ interface FrontendStackConfig {
       "S3Bucket", //logical ressource name
       {
         bucketName: "cloudsheets-frontend-bucket",
+        websiteIndexDocument: "index.html", //enable static website hosting
+        //websiteErrorDocument: "index.html", //optional error Document
+        publicReadAccess: true, //S3 static hosting only public possible
         versioned: true,
-        blockPublicAccess: BlockPublicAccess.BLOCK_ALL, //only give bucket access to people with permissions
+        //blockPublicAccess: BlockPublicAccess.BLOCK_ALL, //only give bucket access to people with permissions
         removalPolicy: RemovalPolicy.DESTROY //automatically delete bucket when stack is removed
       }
      ) 
