@@ -1,9 +1,14 @@
 import { Stack, StackProps, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Bucket, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
+
+interface FrontendStackConfig {
+  bucketName: string;
+  environment: 'dev' | 'prod';
+}
  
  export class FrontendStack extends Stack {
-   constructor(scope: Construct, id: string, props?: StackProps) {
+   constructor(scope: Construct, id: string, config: FrontendStackConfig, props?: StackProps) {
      super(scope, id, props);
 
       //S3 Bucket

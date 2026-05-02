@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib/core';
 import { HelloCdkStack } from '../lib/hello-cdk-stack';
+import { FrontendStack } from '../lib/frontend-stack';
 
 const app = new cdk.App();
 new HelloCdkStack(app, 'HelloCdkStack', {
@@ -17,4 +18,19 @@ new HelloCdkStack(app, 'HelloCdkStack', {
   env: { account: '691537867581', region: 'eu-central-1' },
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+});
+// Dev stack
+new FrontendStack(app, 'FrontendDevStack', {
+  bucketName: 'cloudsheets-frontend-dev-bucket',
+  environment: 'dev',
+}, {
+  env: { account: '691537867581', region: 'eu-central-1' },
+});
+
+// Prod stack
+new FrontendStack(app, 'FrontendStack', {
+  bucketName: 'cloudsheets-frontend-bucket',
+  environment: 'prod',
+}, {
+  env: { account: '691537867581', region: 'eu-central-1' },
 });

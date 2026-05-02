@@ -7,6 +7,8 @@ export class HelloCdkStack extends cdk.Stack {
     super(scope, id, props);
 
     // The code that defines your stack goes here
+    //const domainName = 'cloudsheets.de'
+    //const siteDomain = 'www' + '.' + domainName
 
     // example resource
      const queue = new sqs.Queue(this, 'HelloCdkQueue', {
