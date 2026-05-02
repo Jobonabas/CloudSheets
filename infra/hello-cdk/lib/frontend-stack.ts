@@ -23,8 +23,14 @@ interface FrontendStackConfig {
         //websiteErrorDocument: "index.html", //optional error Document
         publicReadAccess: true, //S3 static hosting only public possible
         versioned: true,
-        //blockPublicAccess: BlockPublicAccess.BLOCK_ALL, //only give bucket access to people with permissions
-        removalPolicy: RemovalPolicy.DESTROY //automatically delete bucket when stack is removed
+        blockPublicAccess: new BlockPublicAccess({
+          blockPublicAcls: false,
+          ignorePublicAcls: false,
+          blockPublicPolicy: false,
+          restrictPublicBuckets: false,
+        }),
+        removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete bucket when stack is removed for dev
+        autoDeleteObjects: config.environment === 'dev', //auto delete for dev stack
       }
      ) 
 
