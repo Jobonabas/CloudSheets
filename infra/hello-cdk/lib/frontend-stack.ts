@@ -1,6 +1,8 @@
 import { Stack, StackProps, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Bucket, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
+import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import * as path from 'path';
 
 interface FrontendStackConfig {
   bucketName: string;
@@ -22,5 +24,10 @@ interface FrontendStackConfig {
         removalPolicy: RemovalPolicy.DESTROY //automatically delete bucket when stack is removed
       }
      ) 
+
+     new s3deploy.BucketDeployment(this, 'DeployFrontend', {
+      sources: [s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist'))], //Path to frontend deployment files
+      destinationBucket: bucket, 
+     })
    }
  }
