@@ -5,7 +5,6 @@ import { InstanceType, Vpc } from 'aws-cdk-lib/aws-ec2';
 import { SecurityGroup, Peer, Port} from 'aws-cdk-lib/aws-ec2';
 
 interface BackendStackConfig {
-  bucketName: string;
   environment: 'dev' | 'prod';
 }
  
@@ -41,22 +40,5 @@ interface BackendStackConfig {
         securityGroups: [dbSG],
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete db when stack is removed for dev
       });
-
-
-    //   const bucket = new Bucket(
-    //   this, //stack in which Bucket will be deployed
-    //   "S3Bucket", //logical ressource name
-    //   {
-    //     bucketName: "cloudsheets-frontend-bucket",
-    //     versioned: true,
-    //     removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete bucket when stack is removed for dev
-    //     autoDeleteObjects: config.environment === 'dev', //auto delete for dev stack
-    //   }
-    //  ) 
-
-    //  new s3deploy.BucketDeployment(this, 'DeployFrontend', {
-    //   sources: [s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist'))], //Path to frontend deployment files
-    //   destinationBucket: bucket, 
-    //  })
    }
  }
