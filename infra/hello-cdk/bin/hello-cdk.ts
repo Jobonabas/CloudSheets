@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib/core';
 import { HelloCdkStack } from '../lib/hello-cdk-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 import { EcrStack } from '../lib/ecr-stack';
+import { AppRunnerStack } from '../lib/apprunner-stack';
 
 const app = new cdk.App();
 new HelloCdkStack(app, 'HelloCdkStack', {
@@ -49,5 +50,10 @@ new EcrStack(app, 'EcrStack', {
   repositoryName: 'cloudsheets-backend',
   environment: 'prod',
 }, {
+  env: { account: '691537867581', region: 'eu-central-1' },
+});
+
+// App Runner Hello World stack
+new AppRunnerStack(app, 'AppRunnerStack', {
   env: { account: '691537867581', region: 'eu-central-1' },
 });
