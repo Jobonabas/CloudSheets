@@ -82,6 +82,6 @@ npx cdk deploy HelloCdkStack
 
 - Make sure your AWS credentials are configured (e.g., via `aws configure`/ `aws login`).
 - The `FrontendDevStack` and `FrontendStack` deploy S3 buckets with different names for dev and prod. The deployment uploads the frontend build from `frontend/dist` to the respective S3 bucket.
-- The `BackendDevStack` and `BackendStack` deploy an RDS PostgreSQL database (`db.t3.micro` instance) in a VPC. Security groups are configured so only backend resources can access the database. dev stack uses 1 Availability Zone removal policy DESTROY (database is deleted with the stack). prod stack uses 2 Availability Zones removal policy RETAIN (database is preserved if the stack is deleted).
+- The `BackendDevStack` and `BackendStack` deploy an RDS PostgreSQL database (`db.t3.micro` instance) in a VPC. Security groups are configured so only backend resources can access the database. dev stack uses removal policy DESTROY (database is deleted with the stack). prod stack uses removal policy RETAIN (database is preserved if the stack is deleted).
 - Database connection details (endpoint, credentials) should be securely passed to backend services (e.g., via AWS SSM Parameter Store or Secrets Manager).
 

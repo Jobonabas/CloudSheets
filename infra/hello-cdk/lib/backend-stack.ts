@@ -1,8 +1,8 @@
-import { Stack, StackProps, RemovalPolicy } from 'aws-cdk-lib';
+import { Stack, StackProps, RemovalPolicy, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion } from 'aws-cdk-lib/aws-rds';
-import { InstanceType, Vpc } from 'aws-cdk-lib/aws-ec2';
-import { SecurityGroup, Peer, Port} from 'aws-cdk-lib/aws-ec2';
+import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion, StorageType } from 'aws-cdk-lib/aws-rds';
+import { InstanceType, Vpc} from 'aws-cdk-lib/aws-ec2';
+import { SecurityGroup, Peer, Port, InstanceClass, InstanceSize} from 'aws-cdk-lib/aws-ec2';
 
 interface BackendStackConfig {
   environment: 'dev' | 'prod';
@@ -13,9 +13,8 @@ interface BackendStackConfig {
      super(scope, id, props);
 
       //Backend VPC
-      const vpc = new Vpc(this, 'BackendVpc', { maxAzs: config.environment === 'dev' ? 1 : 2 }); 
+      const vpc = new Vpc(this, 'BackendVpc', { maxAzs: 2 }); 
       //AWS doesn't allow RDS instances outside of VPCs due to access control
-      //1 Availability Zone is cheaper = enough for development, for production stacks 2
 
       // Security Groups for backend (allow Outbound)
       const backendSG = new SecurityGroup(this, 'BackendSG', {
@@ -35,9 +34,13 @@ interface BackendStackConfig {
       //RDS PostgreSQL Instance (db.t3.micro)
       new DatabaseInstance(this, 'PostgresDB', { 
         engine: DatabaseInstanceEngine.postgres({version: PostgresEngineVersion.VER_18_2}),
-        instanceType: new InstanceType('db.t3.micro'),
+        instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
         vpc,
         securityGroups: [dbSG],
+        allocatedStorage: 20, //disable autoscaling to stay in free tier scope
+       // storageType: StorageType.GP2,
+        multiAz: false, //no multi Availability Zones
+        backupRetention: Duration.days(0), //backups stored for 0 days
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete db when stack is removed for dev
       });
    }
