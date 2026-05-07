@@ -22,11 +22,14 @@ All CDK commands must be run from  `infra/hello-cdk` folder. Make sure you have 
 
 ### Deploying Stacks
 
-As of now there are three main stacks defined in this project:
+As of now there are the following stacks defined in this project:
 
 - `HelloCdkStack`: Example backend resources (e.g., SQS queue)
 - `FrontendDevStack`: Frontend S3 bucket for the development environment
 - `FrontendStack`: Frontend S3 bucket for the production environment
+- `EcrDevStack`: Private ECR container registry for the development environment
+- `EcrStack`: Private ECR container registry for the production environment
+- `AppRunnerStack`: App Runner Hello World service (HTTPS, publicly accessible)
 
 #### Deploy All Stacks
 
@@ -65,6 +68,17 @@ npx cdk deploy HelloCdkStack
 	npx cdk destroy [STACK_NAME]
 	```
 	Destroys the specified stack.
+
+#### Deploy Only the App Runner Stack
+
+```sh
+npx cdk deploy AppRunnerStack
+```
+
+After deploy, the HTTPS URL is printed as output:
+```
+AppRunnerStack.AppRunnerUrl = https://xxxx.eu-central-1.awsapprunner.com
+```
 
 #### Deploy Only the ECR Dev Stack
 
