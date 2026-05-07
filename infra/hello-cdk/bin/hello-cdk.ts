@@ -2,6 +2,7 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { HelloCdkStack } from '../lib/hello-cdk-stack';
 import { FrontendStack } from '../lib/frontend-stack';
+import { EcrStack } from '../lib/ecr-stack';
 
 const app = new cdk.App();
 new HelloCdkStack(app, 'HelloCdkStack', {
@@ -30,6 +31,22 @@ new FrontendStack(app, 'FrontendDevStack', {
 // Prod stack
 new FrontendStack(app, 'FrontendStack', {
   bucketName: 'cloudsheets-frontend-bucket',
+  environment: 'prod',
+}, {
+  env: { account: '691537867581', region: 'eu-central-1' },
+});
+
+// ECR Dev stack
+new EcrStack(app, 'EcrDevStack', {
+  repositoryName: 'cloudsheets-backend-dev',
+  environment: 'dev',
+}, {
+  env: { account: '691537867581', region: 'eu-central-1' },
+});
+
+// ECR Prod stack
+new EcrStack(app, 'EcrStack', {
+  repositoryName: 'cloudsheets-backend',
   environment: 'prod',
 }, {
   env: { account: '691537867581', region: 'eu-central-1' },
