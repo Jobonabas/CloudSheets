@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:18.2
+    container_name: collabsheet-postgres
     ports:
       - "5432:5432"
     environment:

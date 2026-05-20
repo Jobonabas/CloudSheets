@@ -18,11 +18,19 @@ The project documentation is built with [MkDocs](https://www.mkdocs.org/).
 3. Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) in your browser.
 
 ---
+## Backend (Node.js + Fastify)
+## Infrastructure Scripts
+### Build & Start
+To start or stop the local infrastructure (e.g., Postgres database), use the following scripts from the project root:
+
+```bash
+npm run infra:up    # Start infrastructure (docker-compose up -d)
+npm run infra:down  # Stop infrastructure (docker-compose down)
+```
+
+---
 
 ## Backend (Node.js + Fastify)
-
-### Build & Start
-
 1. Install dependencies:
 	```bash
 	cd backend
@@ -40,9 +48,18 @@ The project documentation is built with [MkDocs](https://www.mkdocs.org/).
 
 
 ### API Endpoints
+Backend-specific scripts (build, start, dev, etc.) are documented in [backend/README.md](backend/README.md).
 
+Quick start:
 #### Health Check
+```bash
+cd backend
+npm install
+npm run build   # Build backend (TypeScript → JavaScript)
+npm start       # Start backend
+```
 **GET** `/health`
+For development mode, see backend/README.md for details on the dev script.
 
 #### Ping
 **GET** `/ping`
