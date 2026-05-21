@@ -1,21 +1,25 @@
-import fastify from 'fastify'
+import Fastify from 'fastify'
+import sheetsRoutes from './routes/sheets.ts';
+import healthRoutes from './routes/health.ts';
 
 console.log("geiler Backend Server starting...")
-const server = fastify()
 
-server.get('/ping', async (request, reply) => {
-  return 'pong\n'
-})
+async function start(): Promise<void> {
+  const server = Fastify({
+    logger: true,
+  })
 
-//simple Health Check
-server.get('/health', async (request, reply) => {
-  return { status: 'ok'};
-})
+  await server.register(sheetsRoutes)
+  await server.register(healthRoutes);
 
-server.listen({ port: 8080 }, (err, address) => {
-  if (err) {
-    console.error(err)
-    process.exit(1)
-  }
-  console.log(`Server listening at ${address}`)
+  const address = await server.listen({
+    host: '127.0.0.1',
+    port: 8080
+  });
+  console.log(`Server listening at ${address}`);
+}
+
+start().catch(err => {
+  console.error(err)
+  process.exit(1)
 })
