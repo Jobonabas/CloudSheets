@@ -9,7 +9,31 @@ async function start(): Promise<void> {
     logger: true,
   })
 
-  await server.register(sheetsRoutes)
+  //use Swagger for API Endpoint Documentation
+  await server.register(import('@fastify/swagger'), {
+    openapi: {
+      openapi: '3.0.0',
+      info: {
+        title: 'CloudSheets API',
+        description: 'API documentation for CloudSheets',
+        version: '1.0.0',
+      },
+    },
+  })
+
+  await server.register(import('@fastify/swagger-ui'), {
+    routePrefix: '/documentation',
+    uiConfig: {
+      docExpansion: 'full',
+      deepLinking: false,
+    },
+    staticCSP: true,
+    transformStaticCSP: (header) => header,
+    transformSpecification: (swaggerObject) => swaggerObject,
+    transformSpecificationClone: true,
+  })
+  
+  await server.register(sheetsRoutes);
   await server.register(healthRoutes);
 
   const address = await server.listen({
