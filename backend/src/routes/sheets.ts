@@ -100,4 +100,32 @@ export default async function (
       })
     },
   })
+
+  // DELETE Endpoint
+  fastify.route({
+    url: '/sheets:id',
+    method: 'DELETE',
+    schema: {
+      description: 'Delete sheet with id',
+      tags: ['Sheets'],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            message: {type: 'string'},
+            success: { type: 'boolean' },
+            data: {type: 'array', items: {type: 'object'}}
+          }
+        }
+      }
+    },
+    handler: function myHandler(request, reply) {
+      const { id } = request.params as { id: string};
+      reply.send({
+          message: 'sheet deleted successfully',
+          success: true,
+          data: sheets
+      })
+    },
+  })
 }

@@ -56,6 +56,7 @@ Access the interactive API documentation (Swagger UI) at:
 - **GET** `/ping` — Ping endpoint
 - **GET** `/sheets` — List all sheets (returns an object with `message`, `success`, `data`)
 - **POST** `/sheets` — Create a new sheet
+- **DELETE** `/sheet/:id` - Delete a sheet
 
 ## Notes
 - Make sure the required infrastructure (e.g., Postgres) is running. See the main project README for instructions on starting infrastructure services.

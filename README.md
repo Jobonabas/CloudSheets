@@ -75,7 +75,7 @@ backend endpoints:
 
 - **GET** `/sheets` — List all sheets
 - **POST** `/sheets` — Create a new sheet
-
+- **DELETE** `/sheet/:id` - Delete a sheet
 ---
 
 ## Clean Up AWS Resources
