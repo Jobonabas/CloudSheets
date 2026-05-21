@@ -64,6 +64,18 @@ For development mode, see backend/README.md for details on the dev script.
 #### Ping
 **GET** `/ping`
 
+### Swagger UI
+
+The backend exposes an interactive API documentation UI (Swagger) at:
+
+- `http://127.0.0.1:8080/documentation`
+
+
+backend endpoints:
+
+- **GET** `/sheets` — List all sheets
+- **POST** `/sheets` — Create a new sheet
+
 ---
 
 ## Clean Up AWS Resources
