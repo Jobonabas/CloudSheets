@@ -11,6 +11,7 @@ This directory contains the backend service for CloudSheets, built with Node.js,
 
 2. Copy and configure environment variables if needed (see .env.example if present).
 
+
 ## Available Scripts
 
 - **Build:**
@@ -36,6 +37,14 @@ This directory contains the backend service for CloudSheets, built with Node.js,
     npm test
     ```
     (No tests defined yet.)
+
+- **Migrations:**
+    - `npm run migrate:make` — Create a new migration file.
+    - `npm run migrate:latest` — Run all migrations that have not yet been applied to the database.
+    - `npm run migrate:rollback` — Roll back the last set of migrations performed.
+    - `npm run migrate:up` — Run the next migration that has not yet been run.
+    - `npm run migrate:down` — Roll back the last migration that was run.
+    - `npm run migrate:list` — List all the completed and pending migrations.
 
 ## Project Structure
 
