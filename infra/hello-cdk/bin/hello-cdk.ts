@@ -3,7 +3,6 @@ import * as cdk from 'aws-cdk-lib/core';
 import { FrontendStack } from '../lib/frontend-stack';
 import { BackendStack, BackendStackConfig } from '../lib/backend-stack';
 import * as fs from 'fs';
-import { env } from 'process';
 
 const app = new cdk.App();
 
@@ -31,18 +30,9 @@ const frontendPath =  environment === 'dev'
 
 const config = appConfig[environment as 'dev' | 'prod'];
 
-new FrontendStack(app, 'FrontendDevStack', {
-  bucketName: 'cloudsheets-frontend-dev-bucket',
-  environment: 'dev',
-}, {
-  env: { account: '691537867581', region: 'eu-central-1' },
-});
-
-
-// Prod stack
 new FrontendStack(app, 'FrontendStack', {
   bucketName: 'cloudsheets-frontend-bucket',
-  environment: 'prod',
+  environment,
 }, {
   env: { account: '691537867581', region: 'eu-central-1' },
 });
