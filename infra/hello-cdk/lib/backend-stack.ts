@@ -5,14 +5,24 @@ import { InstanceType, Vpc} from 'aws-cdk-lib/aws-ec2';
 import { SecurityGroup, Peer, Port, InstanceClass, InstanceSize} from 'aws-cdk-lib/aws-ec2';
 import { Mfa, OAuthScope, UserPool, UserPoolClient, UserPoolClientIdentityProvider} from 'aws-cdk-lib/aws-cognito'
 
-interface BackendStackConfig {
+export interface BackendStackConfig {
   environment: 'dev' | 'prod';
+  callbackUrl: string;
+  logoutUrl: string;
 }
  
  export class BackendStack extends Stack {
-   constructor(scope: Construct, id: string, config: BackendStackConfig, props?: StackProps) {
+  public readonly userPoolId: string;
+  public readonly userPoolClientId: string;
+  public readonly cognitoDomainUrl: string; 
+  public readonly logoutUrl: string;
+  public readonly callbackUrl: string;
+  
+  constructor(scope: Construct, id: string, config: BackendStackConfig, props?: StackProps) {
      super(scope, id, props);
 
+     this.callbackUrl = config.callbackUrl;
+     this.logoutUrl = config.logoutUrl; 
       //Backend VPC
       const vpc = new Vpc(this, 'BackendVpc', { maxAzs: 2 }); 
       //AWS doesn't allow RDS instances outside of VPCs due to access control
@@ -83,8 +93,8 @@ interface BackendStackConfig {
             authorizationCodeGrant: true,
           },
           scopes: [OAuthScope.OPENID, OAuthScope.EMAIL, OAuthScope.PROFILE],
-          callbackUrls: ['http://localhost:5173/'],
-          logoutUrls: ['http://localhost:5173/']
+          callbackUrls: [this.callbackUrl],
+          logoutUrls: [this.logoutUrl]
         },
       });
 
@@ -98,5 +108,10 @@ interface BackendStackConfig {
       new CfnOutput(this, 'CognitoDomainUrl', {
         value: providerDomain.baseUrl(),
       });
+
+      this.userPoolId = userPool.userPoolId;
+      this.userPoolClientId = userPoolClient.userPoolClientId;
+      this.cognitoDomainUrl = providerDomain.baseUrl();
+      
    }
  }
