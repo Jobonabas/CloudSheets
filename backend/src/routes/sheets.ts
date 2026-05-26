@@ -32,7 +32,21 @@ export default async function (
           properties: {
             message: {type: 'string'},
             success: { type: 'boolean' },
-            data: {type: 'array', items: {type: 'object'}}
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  title: { type: 'string' },
+                  owner_id: { type: 'string' },
+                  yjs_snapshot: { type: 'string', nullable: true },
+                  created_at: { type: 'string', format: 'date-time' },
+                  updated_at: { type: 'string', format: 'date-time' }
+                },
+                required: ['id', 'title', 'owner_id', 'created_at', 'updated_at']
+              }
+            }
           }
         }
       }
@@ -40,7 +54,7 @@ export default async function (
     handler: async function myHandler(request, reply) {
       const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
       const userSheets = await db('sheets').where({ owner_id: userId }); // get user sheets (with owner check)
-      
+
       reply.send({
           message: 'sheets listed successfully',
           success: true,
