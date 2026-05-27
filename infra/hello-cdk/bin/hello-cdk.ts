@@ -30,23 +30,26 @@ const frontendPath =  environment === 'dev'
 
 const config = appConfig[environment as 'dev' | 'prod'];
 
-new FrontendStack(app, 'FrontendStack', {
-  bucketName: 'cloudsheets-frontend-bucket',
-  environment,
-}, {
-  env: { account: '691537867581', region: 'eu-central-1' },
-});
-
-
 const backendStack = new BackendStack(app, 'BackendStack', 
   config
  , {
   env: { account: '691537867581', region: 'eu-central-1' },
 });
 
-app.synth();
-fs.writeFileSync(frontendPath, `
-  Vite_UserPoolId=${backendStack.userPoolId}
-  Vite_UserPoolClientId=${backendStack.userPoolClientId}
-  Vite_CognitoDomainUrl=${backendStack.cognitoDomainUrl}
-  `);
+const frontendStack = new FrontendStack(app, 'FrontendStack', {
+  bucketName: 'cloudsheets-frontend-bucket',
+  environment,
+  cognitoConfig: {
+    userPoolId: backendStack.userPoolId,
+    clientId: backendStack.userPoolClientId,
+    cognitoDomain: backendStack.cognitoDomainUrl,
+    callbackUrl: config.callbackUrl,
+    logoutUrl: config.logoutUrl,
+    authority: backendStack.authority
+  }
+
+}, {
+  env: { account: '691537867581', region: 'eu-central-1' },
+});
+
+frontendStack.addDependency(backendStack)

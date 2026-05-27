@@ -7,14 +7,22 @@ import * as path from 'path';
 interface FrontendStackConfig {
   bucketName: string;
   environment: 'dev' | 'prod';
+  cognitoConfig: { // Dein Interface hier
+    userPoolId: string;
+    clientId: string;
+    cognitoDomain: string;
+    callbackUrl: string;
+    logoutUrl: string;
+    authority: string;
+  };
 }
- 
- export class FrontendStack extends Stack {
-   constructor(scope: Construct, id: string, config: FrontendStackConfig, props?: StackProps) {
-     super(scope, id, props);
 
-      //S3 Bucket
-      const bucket = new Bucket(
+export class FrontendStack extends Stack {
+  constructor(scope: Construct, id: string, config: FrontendStackConfig, props?: StackProps) {
+    super(scope, id, props);
+
+    //S3 Bucket
+    const bucket = new Bucket(
       this, //stack in which Bucket will be deployed
       "S3Bucket", //logical ressource name
       {
@@ -32,11 +40,12 @@ interface FrontendStackConfig {
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete bucket when stack is removed for dev
         autoDeleteObjects: config.environment === 'dev', //auto delete for dev stack
       }
-     ) 
+    )
 
-     new s3deploy.BucketDeployment(this, 'DeployFrontend', {
-      sources: [s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist'))], //Path to frontend deployment files
-      destinationBucket: bucket, 
-     })
-   }
- }
+    new s3deploy.BucketDeployment(this, 'DeployFrontend', {
+      sources: [s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist')), 
+        s3deploy.Source.data('config.json', JSON.stringify(config.cognitoConfig))], //Path to frontend deployment files
+      destinationBucket: bucket,
+    });
+  }
+}

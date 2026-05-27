@@ -17,6 +17,7 @@ export interface BackendStackConfig {
   public readonly cognitoDomainUrl: string; 
   public readonly logoutUrl: string;
   public readonly callbackUrl: string;
+  public readonly authority: string;
   
   constructor(scope: Construct, id: string, config: BackendStackConfig, props?: StackProps) {
      super(scope, id, props);
@@ -112,6 +113,6 @@ export interface BackendStackConfig {
       this.userPoolId = userPool.userPoolId;
       this.userPoolClientId = userPoolClient.userPoolClientId;
       this.cognitoDomainUrl = providerDomain.baseUrl();
-      
+      this.authority = `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`;
    }
  }
