@@ -5,15 +5,6 @@ import * as Y from 'yjs';
 import Sensible from '@fastify/sensible'
 import db from '../db.ts'
 
-interface Sheets {
-    title: string;
-    id: string; // UUID as string
-    owner_id: string;
-    yjs_snapshot?: Buffer; // BYTEA yjs_snapshot
-    updated_at: Date;
-    created_at: Date;
-}
-
 // export as fastify plugin to index.ts
 export default async function (
   fastify: FastifyInstance,
