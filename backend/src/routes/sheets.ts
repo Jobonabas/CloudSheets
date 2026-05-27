@@ -1,5 +1,6 @@
 import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
 import ws from 'fastify-websocket'
+import { setupWSConnection } from 'y-websocket';
 import Sensible from '@fastify/sensible'
 import db from '../db.ts'
 
@@ -207,7 +208,7 @@ export default async function (
         return;
       }
 
-      yWebsocketHandler(connection, request, ...);
+      setupWSConnection(connection.socket, request, { docName: id });
     },
     handler: async function myHandler(request, reply) {
       //handles normal HTTP request

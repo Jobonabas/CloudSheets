@@ -41,6 +41,8 @@
     "prettier": "^3.8.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30"
   }
 }
