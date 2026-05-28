@@ -1,6 +1,12 @@
 import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
 import ws from 'fastify-websocket'
-import { setupWSConnection } from 'y-websocket';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
+// This completely bypasses the ESM export restrictions!
+const { setupWSConnection } = require('y-websocket/bin/utils.js');
+//import { setupWSConnection } from 'y-websocket';
+//import { setupWSConnection } from 'y-websocket/bin/utils';
 import * as Y from 'yjs';
 import Sensible from '@fastify/sensible'
 import db from '../db.ts'
@@ -54,13 +60,17 @@ export default async function (
 
       const sheet_data = new Y.Doc(); //Create/load empty Yjs Doc
 
-      if (sheet?.yjs_snapshot) {
+      if (sheet.yjs_snapshot) {
         Y.applyUpdate(sheet_data, sheet.yjs_snapshot) // Append Sheet Data from DB
       }
 
-      //sheet_data = await db()
+      sheet_data.on('update', async update => {
+        await db('sheets').where({id}).update({ yjs_snapshot: Y.encodeStateAsUpdate(sheet_data)}); // Write changes to DB on update
+      });
 
-      setupWSConnection(connection.socket, request, { docName: id, sheet_data });
+      setupWSConnection(connection.socket, request, { docName: id });
+      //setupWSConnection(connection.socket, request, { docName: id });
+
     },
     handler: async function myHandler(request, reply) {
       //handles normal HTTP request
