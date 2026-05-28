@@ -46,6 +46,9 @@ This directory contains the backend service for CloudSheets, built with Node.js,
     - `npm run migrate:down` — Roll back the last migration that was run.
     - `npm run migrate:list` — List all the completed and pending migrations.
 
+- **Seeds:**
+    - `npx knex seed:run --env development` - seed demo user for local usage
+
 ## Project Structure
 
 - `src/` — TypeScript source files
@@ -65,7 +68,8 @@ Access the interactive API documentation (Swagger UI) at:
 - **GET** `/ping` — Ping endpoint
 - **GET** `/sheets` — List all sheets (returns an object with `message`, `success`, `data`)
 - **POST** `/sheets` — Create a new sheet
-- **DELETE** `/sheet/:id` - Delete a sheet
+- **DELETE** `/sheets/:id` — Delete a sheet
+- **GET (WebSocket)** `/sheets/:id/sync` — WebSocket endpoint for real-time sheet sync (requires ownership or permission)
 
 ## Notes
 - Make sure the required infrastructure (e.g., Postgres) is running. See the main project README for instructions on starting infrastructure services.

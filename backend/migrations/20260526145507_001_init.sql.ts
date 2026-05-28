@@ -35,7 +35,7 @@ export async function up(knex: Knex): Promise<void> {
         .index();
     table.enu('role', ['editor', 'viewer']).notNullable(); // enum roles
     table.timestamp('created_at').defaultTo(knex.fn.now());
-    table.unique(['sheet_id', 'user_email']); // Unique Index
+    table.unique(['sheet_id', 'user_id']); // Unique Index
   });
 }
 

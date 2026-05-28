@@ -1,5 +1,4 @@
 import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
-import * as Y from 'yjs';
 import Sensible from '@fastify/sensible'
 import db from '../db.ts'
 import fastifyWebsocket from '@fastify/websocket';
@@ -18,7 +17,7 @@ export default async function (
 
   // WebSocket Upgrade Handler Endpoint
   fastify.route({
-    url: '/sheets:id/sync',
+    url: '/sheets/:id/sync',
     method: 'GET',
     schema: {
       description: 'Upgrade Session to WebSocket Connection after owernship/permission check. For viewing/editing single sheets',
@@ -47,23 +46,20 @@ export default async function (
         connection.socket.close();
         return;
       }
-      // Permission check (at least 'viewer' required)
-      const allowed = await hasPermission(userId, id, 'viewer');
+      // Permission check
+      var allowed = false;
+      if (sheet.owner_id === userId) {
+        //immediate access if owner
+        allowed = true;
+      } else {
+        //if not owner check for permissions (min: viewer)
+        allowed = await hasPermission(userId, id, 'viewer')
+      }
       if (!allowed) {
         connection.socket.send(JSON.stringify({ message: 'No access', success: false }));
         connection.socket.close();
         return;
       }
-
-      const sheet_data = new Y.Doc(); //Create/load empty Yjs Doc
-
-      if (sheet.yjs_snapshot) {
-        Y.applyUpdate(sheet_data, sheet.yjs_snapshot) // Append Sheet Data from DB
-      }
-
-      sheet_data.on('update', async update => {
-        await db('sheets').where({id}).update({ yjs_snapshot: Y.encodeStateAsUpdate(sheet_data)}); // Write changes to DB on update
-      });
 
       // create standard request object (Fetch-style) from fastify request object
       const protocol = request.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
@@ -71,8 +67,10 @@ export default async function (
         headers: new Headers(request.headers as Record<string, string>), //key value format
         method: request.method,
       });
-
+      
+      // Open Websocket Connection for Document (identified by database id)
       ws_server.handleConnection(connection.socket, webRequest, { docName: id });
+
     },
     handler: async function myHandler(request, reply) {
       //handles normal HTTP request
@@ -85,15 +83,15 @@ export default async function (
 
 
 // Helper Functions
-async function hasPermission(userId: string, sheetId: string, minRole: 'viewer' | 'editor' | 'owner') {
+async function hasPermission(userId: string, sheetId: string, minRole: 'viewer' | 'editor') {
   // Fetch the users role for sheet in question
   const perm = await db('permissions')
     .where({ user_id: userId, sheet_id: sheetId })
     .first();
-
+  
   if (!perm) return false; //return false if no role defined
 
   // Define role hierarchy
-  const roles = ['viewer', 'editor', 'owner']; // order matching hierarchy level 0 = viewer, 1 = editor, 2 = owner
+  const roles = ['viewer', 'editor']; // order matching hierarchy level 0 = viewer, 1 = editor
   return roles.indexOf(perm.role) >= roles.indexOf(minRole); // return true if role level index is bigger than minimum required Role level for action
 }
