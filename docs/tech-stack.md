@@ -7,13 +7,13 @@
 | **React + Vite**  | SPA Framework   | Standard for performant UIs; fast HMR (Hot Module Replacement). |
 | **AG Grid CE**    | Spreadsheet UI  | High feature density (editing, filtering) with minimal custom work. Premade (saves effort). |
 | **Yjs**           | CRDT Engine     | Enables real-time collaborative editing. |
-| **y-websocket**   | Provider        | WebSocket connection for Yjs. |
+| **hocuspocus/provider**   | Provider        | WebSocket connection for Yjs. |
 
 ### Backend
 | Technology            | Purpose      | Reasoning |
 |-----------------------|-------------|-----------|
 | **Node.js + Fastify** | API Server  | High throughput for WebSockets, TypeScript-native, validated schemas. |
-| **y-websocket Server**| Sync Engine | Lightweight backend module for Yjs (single-instance). |
+| **hocuspocus/server**| Sync Engine | Lightweight backend module for Yjs (single-instance). |
 | **PostgreSQL**        | Persistence | Stores user data and Yjs doc snapshots. |
 | **AWS Cognito**       | Auth Service| Part of AWS, handles authentication. |
 

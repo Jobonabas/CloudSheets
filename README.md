@@ -75,7 +75,8 @@ backend endpoints:
 
 - **GET** `/sheets` — List all sheets
 - **POST** `/sheets` — Create a new sheet
-- **DELETE** `/sheet/:id` - Delete a sheet
+- **DELETE** `/sheets/:id` - Delete a sheet
+- **GET (WebSocket)** `/sheets/:id/sync` — WebSocket endpoint for real-time sheet sync (requires ownership or permission)
 ---
 
 ## Clean Up AWS Resources

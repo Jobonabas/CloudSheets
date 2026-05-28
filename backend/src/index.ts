@@ -1,10 +1,13 @@
 import Fastify from 'fastify'
 import sheetsRoutes from './routes/sheets.ts';
+import sheets_ws_Routes from './routes/sheets-ws.ts'
 import healthRoutes from './routes/health.ts';
+import { ws_server } from './webSocket_server.ts'
 
 console.log("geiler Backend Server starting...")
 
 async function start(): Promise<void> {
+  // initialize Fastify Server
   const server = Fastify({
     logger: true,
   })
@@ -34,6 +37,7 @@ async function start(): Promise<void> {
   })
   
   await server.register(sheetsRoutes);
+  await server.register(sheets_ws_Routes);
   await server.register(healthRoutes);
 
   const address = await server.listen({
