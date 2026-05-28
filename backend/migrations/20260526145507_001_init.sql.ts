@@ -29,7 +29,10 @@ export async function up(knex: Knex): Promise<void> {
         .references('id').inTable('sheets') // FK to sheets id
         .onDelete('CASCADE')
         .index(); // create index on sheet_id due to frequent permission checks
-    table.string('user_email').notNullable();
+    table.string('user_id').notNullable()
+        .references('id').inTable('users')
+        .onDelete('CASCADE')
+        .index();
     table.enu('role', ['editor', 'viewer']).notNullable(); // enum roles
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.unique(['sheet_id', 'user_email']); // Unique Index
