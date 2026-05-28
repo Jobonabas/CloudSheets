@@ -1,15 +1,9 @@
 import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
-import ws from 'fastify-websocket'
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-
-// This completely bypasses the ESM export restrictions!
-const { setupWSConnection } = require('y-websocket/bin/utils.js');
-//import { setupWSConnection } from 'y-websocket';
-//import { setupWSConnection } from 'y-websocket/bin/utils';
 import * as Y from 'yjs';
 import Sensible from '@fastify/sensible'
 import db from '../db.ts'
+import fastifyWebsocket from '@fastify/websocket';
+import { ws_server } from '../webSocket_server.ts'
 
 // export as fastify plugin to index.ts
 export default async function (
@@ -18,6 +12,9 @@ export default async function (
 ): Promise<void> {
   //Import Sensible Plugin for error handling
   await fastify.register(Sensible)
+
+  // Register Fastify Websocket support
+  await fastify.register(fastifyWebsocket)
 
   // WebSocket Upgrade Handler Endpoint
   fastify.route({
@@ -68,9 +65,14 @@ export default async function (
         await db('sheets').where({id}).update({ yjs_snapshot: Y.encodeStateAsUpdate(sheet_data)}); // Write changes to DB on update
       });
 
-      setupWSConnection(connection.socket, request, { docName: id });
-      //setupWSConnection(connection.socket, request, { docName: id });
+      // create standard request object (Fetch-style) from fastify request object
+      const protocol = request.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+      const webRequest = new Request(`${protocol}://${request.headers.host}${request.url}`, {
+        headers: new Headers(request.headers as Record<string, string>), //key value format
+        method: request.method,
+      });
 
+      ws_server.handleConnection(connection.socket, webRequest, { docName: id });
     },
     handler: async function myHandler(request, reply) {
       //handles normal HTTP request
