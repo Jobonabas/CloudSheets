@@ -4,7 +4,7 @@ import { HelloCdkStack } from '../lib/hello-cdk-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 import { BackendStack } from '../lib/backend-stack';
 import { EcrStack } from '../lib/ecr-stack';
-import { AppRunnerStack } from '../lib/apprunner-stack';
+import { EcsExpressStack } from '../lib/ecs-express-stack';
 
 const app = new cdk.App();
 const env = { account: '691537867581', region: 'eu-central-1' };
@@ -57,7 +57,7 @@ new EcrStack(app, 'EcrStack', {
   env,
 });
 
-// App Runner Hello World stack
-new AppRunnerStack(app, 'AppRunnerStack', {
+// ECS Express Mode Hello World stack (replaces deprecated App Runner)
+new EcsExpressStack(app, 'EcsExpressStack', {
   env,
 });
