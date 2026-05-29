@@ -26,7 +26,7 @@ graph TB
 
     subgraph AWS ["☁️ AWS"]
         S3["S3 Bucket\nStatic SPA Files"]
-        AR["App Runner\nBackend (Fastify + y-websocket)"]
+        AR["App Runner\nBackend (Fastify + hocuspocus)"]
         RDS["RDS PostgreSQL\nUsers, Sheets, Yjs Snapshots"]
         Cognito["AWS Cognito\nAuth Service"]
         SSM["SSM Parameter Store\nConfig & Secrets"]

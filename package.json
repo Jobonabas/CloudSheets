@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "@types/node": "^25.6.0"
+  },
+  "scripts": {
+    "infra:up": "docker-compose up -d",
+    "infra:down": "docker-compose down"
+  }
+}
