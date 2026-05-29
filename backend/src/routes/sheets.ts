@@ -1,6 +1,7 @@
 import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
 import Sensible from '@fastify/sensible'
 import db from '../db.ts'
+import { hasPermission } from '../utils/permissions.ts'
 
 interface Sheets {
     title: string;
@@ -164,6 +165,70 @@ export default async function (
         success: true,
         data: null
       });
+    },
+  })
+
+  // Share Sheet Endpoint
+  fastify.route({
+    url: '/sheets/:id/share',
+    method: 'POST',
+    schema: {
+      description: 'Set other users view/edit permissions',
+      tags: ['Sheets'],
+      body: {
+        type: 'object',
+        required: ['id', 'email', 'role'],
+        properties: {
+          id: { type: 'string' },
+          email: { type: 'string', format: 'email' },
+          role: { type: 'string', enum:['viewer' , 'editor']  }
+        }
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            success: { type: 'boolean' },
+            data: { type: 'object', properties: {} }
+          }
+        }
+      }
+    },
+    handler: async function myHandler(request, reply) {
+      const user_id = 'demo-user-id' // request.user.id; Cognito/ JWT Token not implemented yet // TODO: Replace with real user ID from auth
+
+      const { id } = request.params as { id: string };
+      const { email, role } = request.body as { email: string; role: string };
+
+      const sheet = await db('sheets').where({ id }).first();
+      if (!sheet) {
+        throw fastify.httpErrors.badRequest('Sheet not found');
+      }
+
+      const invited_user = await db('users').where({ email: email }).first() //retrieve invited user matching email
+      if (!invited_user) {
+        throw fastify.httpErrors.badRequest( 'User using this email adress does not exist')
+      }
+
+      //check if requesting user is owner or has editor role
+      if(user_id !== sheet.owner_id ) {
+        if (!await hasPermission(user_id, id, 'editor')) {
+          throw fastify.httpErrors.badRequest('Not authorized for sharing this sheet')
+        }
+      }
+      
+      await db('permissions').insert({
+        sheet_id: id,
+        user_id: invited_user.id,
+        role: role
+      })
+
+      reply.send({
+        message: `${ role } Permission for User ${ email } added succesfully.`,
+        success: true,
+        data: null,
+      })
     },
   })
 }
