@@ -122,7 +122,7 @@ export default async function (
 
   // DELETE Endpoint
   fastify.route({
-    url: '/sheets:id',
+    url: '/sheets/:id',
     method: 'DELETE',
     schema: {
       description: 'Delete sheet with id',
