@@ -10,4 +10,10 @@ export async function seed(knex: Knex): Promise<void> {
     email: 'demo@example.com',
     created_at: new Date()
   });
+
+  await knex('users').insert({
+    id: 'demo-user-2',
+    email: 'demo2@example.com',
+    created_at: new Date()
+  });
 }

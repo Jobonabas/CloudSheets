@@ -21,6 +21,20 @@ export const ws_server = new Hocuspocus({
             // append sheet data to Y Document if existing else Y Document starts empty
             Y.applyUpdate(data.document, sheet.yjs_snapshot);
         }
+
+        //fetch users permission role for sheet
+        const permission = await db('permissions').where({ user_id: data.context.userId, sheet_id: data.documentName}).first();
+        if (sheet.owner_id === data.context.userId) {
+            data.context.role === 'owner' //owner check
+        } else {
+            data.context.role = permission ? permission.role : null; //set permission role otherwise set null
+            }
+    },
+    async onChange(data) {
+        // Only allow editor and owner to make changes to document
+        if (data.context.role !== 'editor' || 'owner') {
+            return; //Changes are being ignored for viewer role
+        }
     },
     // persist the final document state to the DB
     async onStoreDocument(data) {
