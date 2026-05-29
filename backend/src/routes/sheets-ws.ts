@@ -70,7 +70,7 @@ export default async function (
       });
       
       // Open Websocket Connection for Document (identified by database id)
-      ws_server.handleConnection(connection.socket, webRequest, { docName: id });
+      ws_server.handleConnection(connection.socket, webRequest, { docName: id, userId: userId });
 
     },
     handler: async function myHandler(request, reply) {
