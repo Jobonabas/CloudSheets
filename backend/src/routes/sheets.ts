@@ -2,6 +2,7 @@ import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
 import Sensible from '@fastify/sensible'
 import db from '../db.ts'
 import { hasPermission } from '../utils/permissions.ts'
+import { GETSheetSchema, POSTSheetSchema, DELETESheetSchema, SHARESheetSchema } from '../schemas/sheet.ts'
 
 interface Sheets {
     title: string;
@@ -24,34 +25,7 @@ export default async function (
   fastify.route({
     url: '/sheets',
     method: 'GET',
-    schema: {
-      description: 'List all sheets',
-      tags: ['Sheets'],
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            message: {type: 'string'},
-            success: { type: 'boolean' },
-            data: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string' },
-                  title: { type: 'string' },
-                  owner_id: { type: 'string' },
-                  yjs_snapshot: { type: 'string', nullable: true },
-                  created_at: { type: 'string', format: 'date-time' },
-                  updated_at: { type: 'string', format: 'date-time' }
-                },
-                required: ['id', 'title', 'owner_id', 'created_at', 'updated_at']
-              }
-            }
-          }
-        }
-      }
-    },
+    schema: { ...GETSheetSchema },
     handler: async function myHandler(request, reply) {
       const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
       const userSheets = await db('sheets').where({ owner_id: userId }); // get user sheets (with owner check)
@@ -68,31 +42,7 @@ export default async function (
   fastify.route({
     url: '/sheets',
     method: 'POST',
-    schema: {
-      description: 'Create a new sheet',
-      tags: ['Sheets'],
-      body: {
-        type: 'object',
-        required: ['title', 'id', 'updated_at', 'created_at'],
-        properties: {
-          title: { type: 'string' },
-          id: { type: 'string' },
-          yjs_snapshot: { type: 'string', contentEncoding: 'base64' },
-          updated_at: { type: 'string', format: 'date-time' },
-          created_at: { type: 'string', format: 'date-time' }
-        }
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            message: { type: 'string' },
-            success: { type: 'boolean' },
-            data: { type: 'object', properties: {} }
-          }
-        }
-      }
-    },
+    schema: { ...POSTSheetSchema },
     handler: async function myHandler(request, reply) {
       const data = request.body as Sheets
 
@@ -124,20 +74,7 @@ export default async function (
   fastify.route({
     url: '/sheets/:id',
     method: 'DELETE',
-    schema: {
-      description: 'Delete sheet with id',
-      tags: ['Sheets'],
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            message: {type: 'string'},
-            success: { type: 'boolean' },
-            data: {type: 'array', items: {type: 'object'}}
-          }
-        }
-      }
-    },
+    schema: { ...DELETESheetSchema },
     handler: async function myHandler(request, reply) {
       const { id } = request.params as { id: string };
       const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
@@ -172,29 +109,7 @@ export default async function (
   fastify.route({
     url: '/sheets/:id/share',
     method: 'POST',
-    schema: {
-      description: 'Set other users view/edit permissions',
-      tags: ['Sheets'],
-      body: {
-        type: 'object',
-        required: ['id', 'email', 'role'],
-        properties: {
-          id: { type: 'string' },
-          email: { type: 'string', format: 'email' },
-          role: { type: 'string', enum:['viewer' , 'editor']  }
-        }
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            message: { type: 'string' },
-            success: { type: 'boolean' },
-            data: { type: 'object', properties: {} }
-          }
-        }
-      }
-    },
+    schema: {...SHARESheetSchema},
     handler: async function myHandler(request, reply) {
       const user_id = 'demo-user-id' // request.user.id; Cognito/ JWT Token not implemented yet // TODO: Replace with real user ID from auth
 

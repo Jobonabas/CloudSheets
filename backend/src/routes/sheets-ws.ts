@@ -4,6 +4,7 @@ import db from '../db.ts'
 import fastifyWebsocket from '@fastify/websocket';
 import { ws_server } from '../webSocket_server.ts'
 import { hasPermission } from '../utils/permissions.ts'
+import { WSSheetSchema } from '../schemas/sheet.ts';
 
 // export as fastify plugin to index.ts
 export default async function (
@@ -20,20 +21,7 @@ export default async function (
   fastify.route({
     url: '/sheets/:id/sync',
     method: 'GET',
-    schema: {
-      description: 'Upgrade Session to WebSocket Connection after owernship/permission check. For viewing/editing single sheets',
-      tags: ['Sheets'],
-      response: {
-        400: {
-          type: 'object',
-          properties: {
-            message: {type: 'string'},
-            success: { type: 'boolean' },
-            data: {type: 'array', items: {type: 'object'}}
-          }
-        }
-      }
-    },
+    schema: {...WSSheetSchema},
     wsHandler: async (connection, request) => {
       const { id } = request.params as { id: string };
       const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
