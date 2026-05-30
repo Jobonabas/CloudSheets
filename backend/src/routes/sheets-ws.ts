@@ -30,7 +30,8 @@ export default async function (
       const sheet = await db('sheets').where({ id }).first();
       if (!sheet) { 
         connection.socket.send(JSON.stringify({
-          message: 'Sheet not found'
+          message: 'Sheet not found',
+          success: false
         }));
         connection.socket.close();
         return;

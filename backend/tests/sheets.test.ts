@@ -1,7 +1,9 @@
-const db = require('../src/db.ts');
-const request = require('supertest');
-const assert = require('assert');
+import db from '../src/db.ts';
+import request from 'supertest';
+import assert from 'assert';
 import type { Sheet } from '../src/interfaces/sheet.ts'
+import { seed } from '../seeds/development/01_demo_user.ts';
+import { beforeAll, describe, it } from 'vitest';
 
 const address = 'http://127.0.0.1:8080'
 // - **GET** `/sheets` — List all sheets
@@ -10,9 +12,11 @@ const address = 'http://127.0.0.1:8080'
 // - **GET (WebSocket)** `/sheets/:id/sync` — WebSocket endpoint for real-time sheet sync (requires ownership or permission)
 // - **POST (Permissions)** `/sheets/:id/share` - Set other users view/edit permissions for sheet using their email address
 
-//seed demo users before tests
+
+//seed demo users before test
 beforeAll(async () => {
-  await require('../seeds/development/01_demo_user').seed(db);
+  const mod = await import('../seeds/development/01_demo_user.ts');
+  await mod.seed(db);
 });
 
 describe('Sheets API', () => {
@@ -192,6 +196,39 @@ describe('Sheets API', () => {
       .expect(200);
     assert.strictEqual(typeof res.body.message, 'string');
     assert.strictEqual(res.body.success, true);
+    // Clean up
+    await db('permissions').where({ sheet_id: sheetId, user_id: 'demo-user-2' }).del();
+    await db('sheets').where({ id: sheetId }).del();
+  });
+
+  it('should return 400 if user already has this permission (POST /sheets/:id/share)', async () => {
+    // Insert a sheet and permission directly into the db
+    const sheetId = uuidv4();
+    await db('sheets').insert({
+      id: sheetId,
+      title: 'Sheet to Share',
+      owner_id: 'demo-user-id',
+      yjs_snapshot: Buffer.from('share').toString('base64'),
+      updated_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
+    });
+    await db('permissions').insert({
+      sheet_id: sheetId,
+      user_id: 'demo-user-2',
+      role: 'viewer'
+    });
+    const sharePayload = {
+      id: sheetId,
+      email: 'demo2@example.com',
+      role: 'viewer'
+    };
+    const res = await request(address)
+      .post(`/sheets/${sheetId}/share`)
+      .send(sharePayload)
+      .expect('Content-Type', /json/)
+      .expect(400);
+    assert.strictEqual(typeof res.body.message, 'string');
+    assert.strictEqual(res.body.success, false);
     // Clean up
     await db('permissions').where({ sheet_id: sheetId, user_id: 'demo-user-2' }).del();
     await db('sheets').where({ id: sheetId }).del();

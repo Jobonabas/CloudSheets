@@ -8,3 +8,4 @@ const environment = (process.env.NODE_ENV as Environment) || 'development'; //de
 const db = knex(knexConfig[environment as keyof typeof knexConfig]); // Type assertion to ensure TypeScript knows the key exists
 
 export default db; // export knex database client
+
