@@ -4,6 +4,6 @@ export default async function (
   fastify: FastifyInstance,
   opts: FastifyPluginOptions
 ) {
-  fastify.get('/ping', async () => 'pong\n');
-  fastify.get('/health', async () => ({ status: 'ok' }));
+  fastify.get('/ping', async () => ({ message: 'pong' }));
+  fastify.get('/health', async () => ({ message: 'ok', status: 'ok' }));
 }

@@ -3,6 +3,7 @@ import type { Knex } from 'knex';
 export async function seed(knex: Knex): Promise<void> {
   // Deletes ALL existing demo users
   await knex('users').where({ id: 'demo-user-id' }).del();
+  await knex('users').where( { id: 'demo-user-2'}).del();
 
   // Inserts demo user
   await knex('users').insert({

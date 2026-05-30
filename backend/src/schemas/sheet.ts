@@ -94,6 +94,14 @@ export const DELETESheetSchema = {
         success: { type: 'boolean', example: false }
       },
       required: ['message', 'success']
+    },
+    400: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Invalid Request'},
+        success: {type: 'boolean', example: false}
+      },
+      required: ['message', 'success']
     }
   }
 };

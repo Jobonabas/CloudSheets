@@ -2,6 +2,7 @@ import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
 import Sensible from '@fastify/sensible'
 import db from '../db.ts'
 import { hasPermission } from '../utils/permissions.ts'
+import { isValidUUID } from '../utils/isValidUUID.ts'
 import { GETSheetSchema, POSTSheetSchema, DELETESheetSchema, SHARESheetSchema } from '../schemas/sheet.ts'
 import type { Sheet } from '../interfaces/sheet.ts'
 
@@ -25,15 +26,16 @@ export default async function (
         .select('id', 'title', 'owner_id', 'created_at', 'updated_at'); // get only relevant data (no snapshot)
 
       const permissions = await db('permissions').where({ user_id: userId});
-      const sharedSheets = [];
+      let sharedSheets: Array<Sheet> = [];
 
-      if(permissions) {
       //load shared sheets if any permissions for userid available
-        for(const entry of permissions) {
-          const sheet = await db('sheets').where({ id: entry.sheet_id}).select('id', 'title', 'owner_id', 'created_at', 'updated_at');
-          if (sheet) sharedSheets.push(sheet);
-        }
+      if (permissions && permissions.length > 0) {
+        const sheetIds = permissions.map((entry: any) => entry.sheet_id);
+        sharedSheets = await db('sheets')
+          .whereIn('id', sheetIds)
+          .select('id', 'title', 'owner_id', 'created_at', 'updated_at');
       }
+
       if((!userSheets && !sharedSheets) || (userSheets.length === 0 && sharedSheets.length === 0)) {
         throw fastify.httpErrors.notFound('No sheets found');
       }
@@ -86,6 +88,11 @@ export default async function (
     schema: { ...DELETESheetSchema },
     handler: async function myHandler(request, reply) {
       const { id } = request.params as { id: string };
+
+      if (!isValidUUID(id)) {
+        throw fastify.httpErrors.badRequest('Invalid sheet ID');
+      }
+      
       const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
 
       const sheet = await db('sheets').where({ id }).first();
@@ -117,6 +124,11 @@ export default async function (
       const user_id = 'demo-user-id' // request.user.id; Cognito/ JWT Token not implemented yet // TODO: Replace with real user ID from auth
 
       const { id } = request.params as { id: string };
+      
+      if (!isValidUUID(id)) {
+        throw fastify.httpErrors.badRequest('Invalid sheet ID');
+      }
+
       const { email, role } = request.body as { email: string; role: string };
       
       const sheet = await db('sheets').where({ id }).first();

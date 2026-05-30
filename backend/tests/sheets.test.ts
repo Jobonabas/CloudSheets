@@ -1,22 +1,22 @@
-import db from '../src/db.ts';
+/// <reference types="vitest" />
+import { beforeAll, describe, it, afterAll } from 'vitest';
 import request from 'supertest';
 import assert from 'assert';
 import type { Sheet } from '../src/interfaces/sheet.ts'
-import { seed } from '../seeds/development/01_demo_user.ts';
-import { beforeAll, describe, it } from 'vitest';
 
 const address = 'http://127.0.0.1:8080'
-// - **GET** `/sheets` — List all sheets
-// - **POST** `/sheets` — Create a new sheet
-// - **DELETE** `/sheets/:id` - Delete a sheet
-// - **GET (WebSocket)** `/sheets/:id/sync` — WebSocket endpoint for real-time sheet sync (requires ownership or permission)
-// - **POST (Permissions)** `/sheets/:id/share` - Set other users view/edit permissions for sheet using their email address
 
-
-//seed demo users before test
+let db: any;
 beforeAll(async () => {
-  const mod = await import('../seeds/development/01_demo_user.ts');
-  await mod.seed(db);
+  process.env.NODE_ENV = 'test';
+  const mod = await import('../src/db.ts');
+  db = mod.default;
+
+  // Run migrations to create schema
+  await db.migrate.latest();
+
+  const seedMod = await import('../seeds/development/01_demo_user.ts');
+  await seedMod.seed(db);
 });
 
 describe('Sheets API', () => {
@@ -37,7 +37,7 @@ describe('Sheets API', () => {
       created_at: new Date().toISOString()
     });
 
-    // Insert a sheet owned by another user and grant permission to demo-user-id
+    // Insert a sheet owned by another user and grant viewer permission to demo-user-id
     const sharedSheetId = uuidv4();
     await db('sheets').insert({
       id: sharedSheetId,
