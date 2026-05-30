@@ -5,7 +5,8 @@ export default defineConfig({
     environment: 'node',
     globals: true,        // you're using assert/supertest, so globals=false is fine
     include: ['tests/**/*.test.ts'],
+    fileParallelism: false,
     coverage: { reporter: ['text'] },
-    //threads: false
+    // threads: false,
   }
 });
