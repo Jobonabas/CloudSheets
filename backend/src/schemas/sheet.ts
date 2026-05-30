@@ -5,8 +5,8 @@ export const GETSheetSchema = {
     200: {
       type: 'object',
       properties: {
-        message: {type: 'string'},
-        success: { type: 'boolean' },
+        message: { type: 'string', example: 'Sheets fetched successfully' },
+        success: { type: 'boolean', example: true },
         data: {
           type: 'array',
           items: {
@@ -22,9 +22,26 @@ export const GETSheetSchema = {
             required: ['id', 'title', 'owner_id', 'created_at', 'updated_at']
           }
         }
-      }
+      },
+      required: ['message', 'success', 'data']
+    },
+    403: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Permission denied' },
+        success: { type: 'boolean', example: false }
+      },
+      required: ['message', 'success']
+    },
+    404: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Sheets not found' },
+        success: { type: 'boolean', example: false }
+      },
+      required: ['message', 'success']
     }
-  } 
+  }
 };
 
 export const POSTSheetSchema = {
@@ -45,10 +62,27 @@ export const POSTSheetSchema = {
     200: {
       type: 'object',
       properties: {
-        message: { type: 'string' },
-        success: { type: 'boolean' },
-        data: { type: 'object', properties: {} }
-      }
+        message: { type: 'string', example: 'Sheet created successfully' },
+        success: { type: 'boolean', example: true },
+        //data: { type: 'object', properties: {} }
+      },
+      required: ['message', 'success']
+    },
+    400: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Invalid input' },
+        success: { type: 'boolean', example: false }
+      },
+      required: ['message', 'success']
+    },
+    403: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Permission denied' },
+        success: { type: 'boolean', example: false }
+      },
+      required: ['message', 'success']
     }
   }
 };
@@ -60,10 +94,27 @@ export const DELETESheetSchema = {
     200: {
       type: 'object',
       properties: {
-        message: {type: 'string'},
-        success: { type: 'boolean' },
-        data: {type: 'array', items: {type: 'object'}}
-      }
+        message: { type: 'string', example: 'Sheet deleted successfully' },
+        success: { type: 'boolean', example: true },
+        //data: { type: 'array', items: { type: 'object' } }
+      },
+      required: ['message', 'success']
+    },
+    403: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Permission denied' },
+        success: { type: 'boolean', example: false }
+      },
+      required: ['message', 'success']
+    },
+    404: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Sheet not found' },
+        success: { type: 'boolean', example: false }
+      },
+      required: ['message', 'success']
     }
   }
 };
@@ -84,10 +135,27 @@ export const SHARESheetSchema = {
     200: {
       type: 'object',
       properties: {
-        message: { type: 'string' },
-        success: { type: 'boolean' },
-        data: { type: 'object', properties: {} }
-      }
+        message: { type: 'string', example: 'Success' },
+        success: { type: 'boolean', example: true },
+        //data: { type: 'object', properties: {} }
+      },
+      required: ['message', 'success']
+    },
+    403: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Permission denied'},
+        success: { type: 'boolean', example: false },
+      },
+      required: ['message', 'success']
+    },
+    404: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Sheet not found'},
+        success: { type: 'boolean', example: false},
+      },
+      required: ['message', 'success']
     }
   }
 };
@@ -96,12 +164,54 @@ export const WSSheetSchema = {
   description: 'Upgrade Session to WebSocket Connection after owernship/permission check. For viewing/editing single sheets',
   tags: ['Sheets'],
   response: {
+    101: {
+      description: 'WebSocket protocol upgrade successful, lets edit some sheets together!'
+    },
     400: {
+      description: 'Bad request :c',
+      type: 'object',
+      properties: {
+        message: {type: 'string', example: 'Invalid request :c'},
+        success: { type: 'boolean', example: false},
+        //data: {type: 'array', items: {type: 'object'}}
+      },
+      required: ['message', 'success']
+    },
+    403: {
+      description: 'Forbidden (Permission denied)',
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Permission denied. Not geil enough?'},
+        success: { type: 'boolean', example: false}
+      },
+      required: ['message', 'success']
+    }
+  }
+};
+
+export const HEALTHSchema = {
+  description: 'Return "ok" if Endpoint/Backend is reachable',
+  tags: ['Health'],
+  response: {
+    200: {
       type: 'object',
       properties: {
         message: {type: 'string'},
-        success: { type: 'boolean' },
-        data: {type: 'array', items: {type: 'object'}}
+        example: { type: 'ok' }
+      }
+    }
+  }
+};
+
+export const PINGSchema = {
+  description: 'Return "pong" if Endpoint/Backend is reachable',
+  tags: ['Health'],
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        message: {type: 'string'},
+        example: { type: 'pong' }
       }
     }
   }

@@ -65,7 +65,7 @@ export default async function (
       reply.send({
         message: 'Sheet added succesfully.',
         success: true,
-        data: null,
+        //data: null,
       })
     },
   })
@@ -84,7 +84,7 @@ export default async function (
         reply.send({
           message: 'Sheet not found',
           success: false,
-          data: null
+          //data: null
         });
         return;
        }
@@ -92,7 +92,7 @@ export default async function (
         reply.send({
           message: 'Sheet not deleted. Not authorized',
           success: false,
-          data: null
+          //data: null
         });
         return;
        }
@@ -100,7 +100,7 @@ export default async function (
       reply.send({
         message: 'Sheet deleted successfully',
         success: true,
-        data: null
+        //data: null
       });
     },
   })
@@ -142,7 +142,7 @@ export default async function (
       reply.send({
         message: `${ role } Permission for User ${ email } added succesfully.`,
         success: true,
-        data: null,
+        //data: null,
       })
     },
   })
