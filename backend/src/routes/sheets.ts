@@ -28,12 +28,28 @@ export default async function (
     schema: { ...GETSheetSchema },
     handler: async function myHandler(request, reply) {
       const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
-      const userSheets = await db('sheets').where({ owner_id: userId }); // get user sheets (with owner check)
+      const userSheets = await db('sheets') // get user sheets
+        .where({ owner_id: userId }) //(with owner check)
+        .select('id', 'title', 'owner_id', 'created_at', 'updated_at'); // get only relevant data (no snapshot)
 
+      const permissions = await db('permissions').where({ user_id: userId});
+      const sharedSheets = [];
+
+      if(permissions) {
+      //load shared sheets if any permissions for userid available
+        for(const entry of permissions) {
+          const sheet = await db('sheets').where({ id: entry.sheet_id}).select('id', 'title', 'owner_id', 'created_at', 'updated_at');
+          if (sheet) sharedSheets.push(sheet);
+        }
+      }
+      if(!userSheets && !sharedSheets || userSheets.length === 0 && sharedSheets.length === 0) {
+        throw fastify.httpErrors.notFound('No sheets found');
+      }
+      
       reply.send({
           message: 'sheets listed successfully',
           success: true,
-          data: userSheets
+          data: [userSheets, sharedSheets]
       })
     },
   })
@@ -118,18 +134,18 @@ export default async function (
 
       const sheet = await db('sheets').where({ id }).first();
       if (!sheet) {
-        throw fastify.httpErrors.badRequest('Sheet not found');
+        throw fastify.httpErrors.notFound('Sheet not found');
       }
 
       const invited_user = await db('users').where({ email: email }).first() //retrieve invited user matching email
       if (!invited_user) {
-        throw fastify.httpErrors.badRequest( 'User using this email adress does not exist')
+        throw fastify.httpErrors.notFound( 'User using this email adress does not exist')
       }
 
       //check if requesting user is owner or has editor role
       if(user_id !== sheet.owner_id ) {
         if (!await hasPermission(user_id, id, 'editor')) {
-          throw fastify.httpErrors.badRequest('Not authorized for sharing this sheet')
+          throw fastify.httpErrors.forbidden('Not authorized for sharing this sheet')
         }
       }
       

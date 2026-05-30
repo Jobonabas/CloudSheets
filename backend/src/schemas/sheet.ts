@@ -1,3 +1,5 @@
+import { SheetObject } from './sheetObject.ts';
+
 export const GETSheetSchema = {
   description: 'List all sheets',
   tags: ['Sheets'],
@@ -7,32 +9,25 @@ export const GETSheetSchema = {
       properties: {
         message: { type: 'string', example: 'Sheets fetched successfully' },
         success: { type: 'boolean', example: true },
-        data: {
+        userSheets: {
           type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string' },
-              title: { type: 'string' },
-              owner_id: { type: 'string' },
-              yjs_snapshot: { type: 'string', nullable: true },
-              created_at: { type: 'string', format: 'date-time' },
-              updated_at: { type: 'string', format: 'date-time' }
-            },
-            required: ['id', 'title', 'owner_id', 'created_at', 'updated_at']
-          }
+          items: SheetObject
+        },
+        sharedSheets: {
+          type: 'array',
+          items: SheetObject
         }
       },
-      required: ['message', 'success', 'data']
+      required: ['message', 'success', 'userSheets', 'sharedSheets']
     },
-    403: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', example: 'Permission denied' },
-        success: { type: 'boolean', example: false }
-      },
-      required: ['message', 'success']
-    },
+    // 403: {
+    //   type: 'object',
+    //   properties: {
+    //     message: { type: 'string', example: 'Permission denied' },
+    //     success: { type: 'boolean', example: false }
+    //   },
+    //   required: ['message', 'success']
+    // },
     404: {
       type: 'object',
       properties: {
