@@ -36,7 +36,6 @@ This directory contains the backend service for CloudSheets, built with Node.js,
     ```bash
     npm test
     ```
-    (No tests defined yet.)
 
 - **Migrations:**
     - `npm run migrate:make` — Create a new migration file.
