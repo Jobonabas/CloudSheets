@@ -36,7 +36,6 @@ This directory contains the backend service for CloudSheets, built with Node.js,
     ```bash
     npm test
     ```
-    (No tests defined yet.)
 
 - **Migrations:**
     - `npm run migrate:make` — Create a new migration file.
@@ -70,6 +69,7 @@ Access the interactive API documentation (Swagger UI) at:
 - **POST** `/sheets` — Create a new sheet
 - **DELETE** `/sheets/:id` — Delete a sheet
 - **GET (WebSocket)** `/sheets/:id/sync` — WebSocket endpoint for real-time sheet sync (requires ownership or permission)
+- **POST (Permissions)** `/sheets/:id/share` - Set other users view/edit permissions for sheet using their email address
 
 ## Notes
 - Make sure the required infrastructure (e.g., Postgres) is running. See the main project README for instructions on starting infrastructure services.

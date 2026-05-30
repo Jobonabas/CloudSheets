@@ -3,6 +3,7 @@ import sheetsRoutes from './routes/sheets.ts';
 import sheets_ws_Routes from './routes/sheets-ws.ts'
 import healthRoutes from './routes/health.ts';
 import { ws_server } from './webSocket_server.ts'
+import { customErrorHandler } from './utils/errorHandler.ts';
 
 console.log("geiler Backend Server starting...")
 
@@ -11,6 +12,7 @@ async function start(): Promise<void> {
   const server = Fastify({
     logger: true,
   })
+  server.setErrorHandler(customErrorHandler); // Use Custom Errors
 
   //use Swagger for API Endpoint Documentation
   await server.register(import('@fastify/swagger'), {

@@ -26,10 +26,10 @@ export default {
       directory: __dirname + '/seeds/development',
     },
   },
-  testing: {
+  production: {
     client: 'pg',
     connection: {
-      connectionString: 'postgresql://cloudsheet:dev123@localhost:5432/cloudsheet',
+      connectionString: process.env.DATABASE_URL,
     },
     pool: {
       min: 2,
@@ -40,7 +40,7 @@ export default {
       tableName: 'knex_migrations',
     },
     seeds: {
-      directory: __dirname + '/seeds/testing',
+      directory: __dirname + '/seeds/development',
     },
   },
 }

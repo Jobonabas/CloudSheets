@@ -45,6 +45,11 @@ npm run infra:down  # Stop infrastructure (docker-compose down)
 	npm start
 	```
 
+4. Run tests:
+	```bash
+	npm test
+	```
+
 
 
 ### API Endpoints

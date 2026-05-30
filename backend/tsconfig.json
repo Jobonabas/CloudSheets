@@ -9,7 +9,7 @@
     // See also https://aka.ms/tsconfig/module
     "module": "nodenext",
     "target": "es2017",
-    "types": ["node"],
+    "types": ["node", "vitest"],
     // For nodejs:
     // "lib": ["esnext"],
     // "types": ["node"],
@@ -43,6 +43,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "knexfile.ts"],
+  "include": ["src/**/*", "knexfile.ts", "tests/**/*"],
   "exclude": ["node_modules", "dist"]
 }
