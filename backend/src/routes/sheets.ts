@@ -97,20 +97,14 @@ export default async function (
 
       const sheet = await db('sheets').where({ id }).first();
       if (!sheet) { 
-        reply.send({
-          message: 'Sheet not found',
-          success: false,
-          //data: null
-        });
-        return;
+        throw fastify.httpErrors.notFound(
+          'Sheet not found.',
+        )
        }
       if (sheet.owner_id !== userId) { 
-        reply.send({
-          message: 'Sheet not deleted. Not authorized',
-          success: false,
-          //data: null
-        });
-        return;
+        throw fastify.httpErrors.forbidden(
+          'Sheet not deleted. Not authorized',
+        )
        }
       await db('sheets').where({ id }).del(); // delete sheet
       reply.send({

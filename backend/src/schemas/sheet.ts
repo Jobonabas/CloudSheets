@@ -20,14 +20,6 @@ export const GETSheetSchema = {
       },
       required: ['message', 'success', 'userSheets', 'sharedSheets']
     },
-    // 403: {
-    //   type: 'object',
-    //   properties: {
-    //     message: { type: 'string', example: 'Permission denied' },
-    //     success: { type: 'boolean', example: false }
-    //   },
-    //   required: ['message', 'success']
-    // },
     404: {
       type: 'object',
       properties: {
@@ -67,14 +59,6 @@ export const POSTSheetSchema = {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Invalid input' },
-        success: { type: 'boolean', example: false }
-      },
-      required: ['message', 'success']
-    },
-    403: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', example: 'Permission denied' },
         success: { type: 'boolean', example: false }
       },
       required: ['message', 'success']
