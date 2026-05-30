@@ -3,15 +3,7 @@ import Sensible from '@fastify/sensible'
 import db from '../db.ts'
 import { hasPermission } from '../utils/permissions.ts'
 import { GETSheetSchema, POSTSheetSchema, DELETESheetSchema, SHARESheetSchema } from '../schemas/sheet.ts'
-
-interface Sheets {
-    title: string;
-    id: string; // UUID as string
-    owner_id: string;
-    yjs_snapshot?: Buffer; // BYTEA yjs_snapshot
-    updated_at: Date;
-    created_at: Date;
-}
+import type { Sheet } from '../interfaces/sheet.ts'
 
 // export as fastify plugin to index.ts
 export default async function (
@@ -42,7 +34,7 @@ export default async function (
           if (sheet) sharedSheets.push(sheet);
         }
       }
-      if(!userSheets && !sharedSheets || userSheets.length === 0 && sharedSheets.length === 0) {
+      if((!userSheets && !sharedSheets) || (userSheets.length === 0 && sharedSheets.length === 0)) {
         throw fastify.httpErrors.notFound('No sheets found');
       }
       
@@ -60,7 +52,7 @@ export default async function (
     method: 'POST',
     schema: { ...POSTSheetSchema },
     handler: async function myHandler(request, reply) {
-      const data = request.body as Sheets
+      const data = request.body as Sheet
 
       const owner_id = 'demo-user-id' // request.user.id; Cognito/ JWT Token not implemented yet // TODO: Replace with real user ID from auth
 
