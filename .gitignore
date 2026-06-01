@@ -5,6 +5,10 @@ node_modules/
 dist/
 cdk.out/
 
+#Temporäre CLI Artefakte
+dist-config*.json
+update-config.json
+
 # Environment
 .env
 .env.local

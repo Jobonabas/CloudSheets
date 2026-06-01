@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib/core';
-import { FrontendStack } from '../lib/frontend-stack';
-import { BackendStack, BackendStackConfig } from '../lib/backend-stack';
+import { FrontendStack, FrontendStackConfig } from '../lib/frontend-stack';
+import { BackendStack } from '../lib/backend-stack';
 import * as fs from 'fs';
 
 const app = new cdk.App();
@@ -10,16 +10,16 @@ const app = new cdk.App();
 type EnvType = 'dev' | 'prod';
 
 // Apply the type to the object
-const appConfig: Record<EnvType, BackendStackConfig> = {
+const appConfig: Record<EnvType, FrontendStackConfig> = {
   dev: {
+    bucketName: 'cloudsheets-frontend-bucket',
     environment: 'dev',
-    callbackUrl: 'http://localhost:5173/',
-    logoutUrl: 'http://localhost:5173/',
+  
   },
   prod: {
+    bucketName: 'cloudsheets-frontend-bucket',
     environment: 'prod',
-    callbackUrl: 'https://your-production-domain.com/',
-    logoutUrl: 'https://your-production-domain.com/',
+  
   }
 };
 
@@ -39,15 +39,6 @@ const backendStack = new BackendStack(app, 'BackendStack',
 const frontendStack = new FrontendStack(app, 'FrontendStack', {
   bucketName: 'cloudsheets-frontend-bucket',
   environment,
-  cognitoConfig: {
-    userPoolId: backendStack.userPoolId,
-    clientId: backendStack.userPoolClientId,
-    cognitoDomain: backendStack.cognitoDomainUrl,
-    callbackUrl: config.callbackUrl,
-    logoutUrl: config.logoutUrl,
-    authority: backendStack.authority
-  }
-
 }, {
   env: { account: '691537867581', region: 'eu-central-1' },
 });

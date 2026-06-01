@@ -3,27 +3,19 @@ import { Construct } from 'constructs';
 import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion, StorageType } from 'aws-cdk-lib/aws-rds';
 import { InstanceType, Vpc} from 'aws-cdk-lib/aws-ec2';
 import { SecurityGroup, Peer, Port, InstanceClass, InstanceSize} from 'aws-cdk-lib/aws-ec2';
-import { Mfa, OAuthScope, UserPool, UserPoolClient, UserPoolClientIdentityProvider} from 'aws-cdk-lib/aws-cognito'
+
 
 export interface BackendStackConfig {
   environment: 'dev' | 'prod';
-  callbackUrl: string;
-  logoutUrl: string;
 }
  
  export class BackendStack extends Stack {
-  public readonly userPoolId: string;
-  public readonly userPoolClientId: string;
-  public readonly cognitoDomainUrl: string; 
-  public readonly logoutUrl: string;
-  public readonly callbackUrl: string;
-  public readonly authority: string;
+  
   
   constructor(scope: Construct, id: string, config: BackendStackConfig, props?: StackProps) {
      super(scope, id, props);
 
-     this.callbackUrl = config.callbackUrl;
-     this.logoutUrl = config.logoutUrl; 
+     
       //Backend VPC
       const vpc = new Vpc(this, 'BackendVpc', { maxAzs: 2 }); 
       //AWS doesn't allow RDS instances outside of VPCs due to access control
@@ -56,63 +48,6 @@ export interface BackendStackConfig {
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete db when stack is removed for dev
       });
 
-      const userPool = new UserPool(this, 'BackendUserPool', {
-        userPoolName: 'cloudsheets-user-pool',
-        selfSignUpEnabled: true,
-        signInAliases:{
-          email: true
-        },
-        autoVerify: {email: true},
-        passwordPolicy: {
-          minLength: 12,
-          requireUppercase: true,
-          requireLowercase: true,
-          requireDigits: true,
-          requireSymbols: true,
-        },
-        mfa: Mfa.REQUIRED,
-        mfaSecondFactor: {
-          sms: false,
-          otp: true
-        },
-        removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN,
-      });
-
-      const providerDomain = userPool.addDomain('CognitoDomain', {
-        cognitoDomain: {
-            domainPrefix: `cloudsheets-auth-${config.environment}`,
-        },
-      });
-
-      const userPoolClient = new UserPoolClient(this, 'BackendUserPoolClient', {
-        userPool,
-        supportedIdentityProviders: [
-          UserPoolClientIdentityProvider.COGNITO,
-        ],
-        oAuth: {
-          flows: {
-            authorizationCodeGrant: true,
-          },
-          scopes: [OAuthScope.OPENID, OAuthScope.EMAIL, OAuthScope.PROFILE],
-          callbackUrls: [this.callbackUrl],
-          logoutUrls: [this.logoutUrl]
-        },
-      });
-
-      new CfnOutput(this, 'UserPoolId', {
-        value: userPool.userPoolId
-      });
       
-      new CfnOutput(this, 'UserPoolClientId', {
-        value: userPoolClient.userPoolClientId,
-      });
-      new CfnOutput(this, 'CognitoDomainUrl', {
-        value: providerDomain.baseUrl(),
-      });
-
-      this.userPoolId = userPool.userPoolId;
-      this.userPoolClientId = userPoolClient.userPoolClientId;
-      this.cognitoDomainUrl = providerDomain.baseUrl();
-      this.authority = `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`;
    }
  }
