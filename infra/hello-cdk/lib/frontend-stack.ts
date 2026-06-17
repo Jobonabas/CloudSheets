@@ -72,13 +72,6 @@ export class FrontendStack extends Stack {
       ],
     });
 
-    new s3deploy.BucketDeployment(this, 'DeployFrontend', {
-      sources: [s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist'))], //Path to frontend deployment files
-      destinationBucket: bucket,
-      distribution,
-      distributionPaths: ['/*'],
-    });
-
     new CfnOutput(this, 'CloudFrontUrl', {
         value: `https://${distribution.distributionDomainName}`});
     
@@ -142,27 +135,20 @@ export class FrontendStack extends Stack {
       });
 
       
-       new cr.AwsCustomResource(this, 'WriteConfig', {
-  onUpdate: {
-    service: 'S3',
-    action: 'putObject',
-    parameters: {
-      Bucket: bucket.bucketName,
-      Key: 'config.json',
-      Body: JSON.stringify({
-        authority: `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`,
-        clientId: userPoolClient.userPoolClientId,
-        callbackUrl: baseUrl,
-        logoutUrl: baseUrl,
-        cognitoDomain: providerDomain.baseUrl(),
-      }),
-      ContentType: 'application/json',
-    },
-    physicalResourceId: cr.PhysicalResourceId.of('config-json'),
-  },
-  policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
-    resources: [bucket.bucketArn + '/*'],
-  }),
+       new s3deploy.BucketDeployment(this, 'DeployFrontend', {
+  sources: [
+    s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist')),
+    s3deploy.Source.jsonData('config.json', {  // ← direkt hier!
+      authority: `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`,
+      clientId: userPoolClient.userPoolClientId,
+      callbackUrl: baseUrl,
+      logoutUrl: baseUrl,
+      cognitoDomain: providerDomain.baseUrl(),
+    }),
+  ],
+  destinationBucket: bucket,
+  distribution,
+  distributionPaths: ['/*'],
 });
 }
 }
