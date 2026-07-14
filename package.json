@@ -1,5 +1,9 @@
 {
-  "devDependencies": {
+  "dependencies": {
+    "oidc-client-ts": "^3.5.0",
+    "react-oidc-context": "^3.3.1"
+  },
+    "devDependencies": {
     "@types/node": "^25.6.0"
   },
   "scripts": {

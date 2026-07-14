@@ -1,17 +1,21 @@
-import { Stack, StackProps, RemovalPolicy, Duration } from 'aws-cdk-lib';
+import { Stack, StackProps, RemovalPolicy, Duration, CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion, StorageType } from 'aws-cdk-lib/aws-rds';
 import { InstanceType, Vpc} from 'aws-cdk-lib/aws-ec2';
 import { SecurityGroup, Peer, Port, InstanceClass, InstanceSize} from 'aws-cdk-lib/aws-ec2';
 
-interface BackendStackConfig {
+
+export interface BackendStackConfig {
   environment: 'dev' | 'prod';
 }
  
  export class BackendStack extends Stack {
-   constructor(scope: Construct, id: string, config: BackendStackConfig, props?: StackProps) {
+  
+  
+  constructor(scope: Construct, id: string, config: BackendStackConfig, props?: StackProps) {
      super(scope, id, props);
 
+     
       //Backend VPC
       const vpc = new Vpc(this, 'BackendVpc', { maxAzs: 2 }); 
       //AWS doesn't allow RDS instances outside of VPCs due to access control
@@ -43,5 +47,7 @@ interface BackendStackConfig {
         backupRetention: Duration.days(0), //backups stored for 0 days
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete db when stack is removed for dev
       });
+
+      
    }
  }

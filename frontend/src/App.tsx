@@ -1,15 +1,60 @@
-//import React from 'react';
+// App.js
 
-function App() {
+import { useAuth } from "react-oidc-context";
+
+interface AppConfig {
+  clientId: string;
+  logoutUrl: string;
+  cognitoDomain: string;
+}
+interface AppProps {
+  config: AppConfig;
+}
+
+function App({config}: AppProps) {
+  const auth = useAuth();
+
+  const signOutRedirect = () => {
+    const clientId = config.clientId;
+    const logoutUri = config.logoutUrl;
+    const cognitoDomain = config.cognitoDomain;
+    window.location.href = `${cognitoDomain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
+  };
+
+
+/*
+    const clientId = "5l7q2l2q5ic94jj0egcl9hccfk";
+    const logoutUri = "<logout uri>";
+    const cognitoDomain = "https://eu-north-1rf4js7y9l.auth.eu-north-1.amazoncognito.com";
+    window.location.href = `${cognitoDomain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
+*/
+
+
+  if (auth.isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (auth.error) {
+    return <div>Encountering error... {auth.error.message}</div>;
+  }
+
+  if (auth.isAuthenticated) {
+    return (
+      <div>
+        <pre> Hello: {auth.user?.profile.email} </pre>
+        <pre> ID Token: {auth.user?.id_token} </pre>
+        <pre> Access Token: {auth.user?.access_token} </pre>
+        <pre> Refresh Token: {auth.user?.refresh_token} </pre>
+
+        <button onClick={() => auth.removeUser()}>Sign out</button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: '100vh',
-      fontFamily: 'sans-serif' 
-    }}>
-      <h1>CollabSheet</h1>
+    <div>
+      <button onClick={() => auth.signinRedirect()}>Sign in</button>
+      <button onClick={() => signOutRedirect()}>Sign out</button>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib/core';
-import { HelloCdkStack } from '../lib/hello-cdk-stack';
-import { FrontendStack } from '../lib/frontend-stack';
+import { FrontendStack, FrontendStackConfig } from '../lib/frontend-stack';
 import { BackendStack } from '../lib/backend-stack';
 import { EcrStack } from '../lib/ecr-stack';
 import { EcsExpressStack } from '../lib/ecs-express-stack';
@@ -9,36 +8,41 @@ import { EcsExpressStack } from '../lib/ecs-express-stack';
 const app = new cdk.App();
 const env = { account: '691537867581', region: 'eu-central-1' };
 
-new HelloCdkStack(app, 'HelloCdkStack', {
-  env,
+// Define the type alias
+type EnvType = 'dev' | 'prod';
+
+// Apply the type to the object
+const appConfig: Record<EnvType, FrontendStackConfig> = {
+  dev: {
+    bucketName: 'cloudsheets-frontend-bucket',
+    environment: 'dev',
+  
+  },
+  prod: {
+    bucketName: 'cloudsheets-frontend-bucket',
+    environment: 'prod',
+  
+  }
+};
+
+const environment = app.node.tryGetContext('environment') ?? 'dev';
+const frontendPath =  environment === 'dev'
+ ? '../../frontend/.env.dev'
+ : '../../frontend/.env.prod';
+
+const config = appConfig[environment as 'dev' | 'prod'];
+
+const backendStack = new BackendStack(app, 'BackendStack', 
+  config
+ , {
+  env: { account: '691537867581', region: 'eu-central-1' },
 });
 
-// Dev stack
-new FrontendStack(app, 'FrontendDevStack', {
-  bucketName: 'cloudsheets-frontend-dev-bucket',
-  environment: 'dev',
-}, {
-  env,
-});
-
-new BackendStack(app, 'BackendDevStack', {
-  environment: 'dev',
-}, {
-  env,
-});
-
-// Prod stack
-new FrontendStack(app, 'FrontendStack', {
+const frontendStack = new FrontendStack(app, 'FrontendStack', {
   bucketName: 'cloudsheets-frontend-bucket',
-  environment: 'prod',
+  environment,
 }, {
-  env,
-});
-
-new BackendStack(app, 'BackendStack', {
-  environment: 'prod',
-}, {
-  env,
+  env: { account: '691537867581', region: 'eu-central-1' },
 });
 
 // ECR Dev stack
