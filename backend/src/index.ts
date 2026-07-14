@@ -1,21 +1,55 @@
-import fastify from 'fastify'
+import Fastify from 'fastify'
+import sheetsRoutes from './routes/sheets.ts';
+import sheets_ws_Routes from './routes/sheets-ws.ts'
+import healthRoutes from './routes/health.ts';
+import { ws_server } from './webSocket_server.ts'
+import { customErrorHandler } from './utils/errorHandler.ts';
 
 console.log("geiler Backend Server starting...")
-const server = fastify()
 
-server.get('/ping', async (request, reply) => {
-  return 'pong\n'
-})
+async function start(): Promise<void> {
+  // initialize Fastify Server
+  const server = Fastify({
+    logger: true,
+  })
+  server.setErrorHandler(customErrorHandler); // Use Custom Errors
 
-//simple Health Check
-server.get('/health', async (request, reply) => {
-  return { status: 'ok'};
-})
+  //use Swagger for API Endpoint Documentation
+  await server.register(import('@fastify/swagger'), {
+    openapi: {
+      openapi: '3.0.0',
+      info: {
+        title: 'CloudSheets API',
+        description: 'API documentation for CloudSheets',
+        version: '1.0.0',
+      },
+    },
+  })
 
-server.listen({ port: 8080 }, (err, address) => {
-  if (err) {
-    console.error(err)
-    process.exit(1)
-  }
-  console.log(`Server listening at ${address}`)
+  await server.register(import('@fastify/swagger-ui'), {
+    routePrefix: '/documentation',
+    uiConfig: {
+      docExpansion: 'full',
+      deepLinking: false,
+    },
+    staticCSP: true,
+    transformStaticCSP: (header) => header,
+    transformSpecification: (swaggerObject) => swaggerObject,
+    transformSpecificationClone: true,
+  })
+  
+  await server.register(sheetsRoutes);
+  await server.register(sheets_ws_Routes);
+  await server.register(healthRoutes);
+
+  const address = await server.listen({
+    host: '127.0.0.1',
+    port: 8080
+  });
+  console.log(`Server listening at ${address}`);
+}
+
+start().catch(err => {
+  console.error(err)
+  process.exit(1)
 })
