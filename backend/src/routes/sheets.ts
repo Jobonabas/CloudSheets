@@ -142,15 +142,15 @@ export default async function (
       }
       const user_id = payload.sub;
 
-      const { id } = request.params as { id: string };
+      const { sheet_id } = request.params as { sheet_id: string };
       
-      if (!isValidUUID(id)) {
+      if (!isValidUUID(sheet_id)) {
         throw fastify.httpErrors.badRequest('Invalid sheet ID');
       }
 
       const { email, role } = request.body as { email: string; role: string };
       
-      const sheet = await db('sheets').where({ id }).first();
+      const sheet = await db('sheets').where({ sheet_id }).first();
       if (!sheet) {
         throw fastify.httpErrors.notFound('Sheet not found');
       }
@@ -161,17 +161,17 @@ export default async function (
       }
       //check if requesting user is owner or has editor role
       if(user_id !== sheet.owner_id ) {
-        if (!await hasPermission(user_id, id, 'editor')) {
+        if (!await hasPermission(user_id, sheet_id, 'editor')) {
           throw fastify.httpErrors.forbidden('Not authorized for sharing this sheet')
         }
       }
 
       // check if invited user already has Permission
-      const existingPermission = await db('permissions').where({ sheet_id: id, user_id: invited_user.id }).first();
+      const existingPermission = await db('permissions').where({ sheet_id: sheet_id, user_id: invited_user.id }).first();
       if(existingPermission) {
         if(existingPermission.role !== role) {
           //update role if already exists
-          await db('permissions').where({ sheet_id: id, user_id: invited_user.id}).update({role});
+          await db('permissions').where({ sheet_id: sheet_id, user_id: invited_user.id}).update({role});
           reply.send({
             message: `Permission for User ${email} updated to ${role}.`,
             success: true,
@@ -183,7 +183,7 @@ export default async function (
       }
       // Insert new permission if no permission exists
       await db('permissions').insert({
-        sheet_id: id,
+        sheet_id: sheet_id,
         user_id: invited_user.id,
         role: role
       })
