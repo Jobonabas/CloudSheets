@@ -26,13 +26,13 @@ export default async function (
       if (!payload?.sub) {
         throw fastify.httpErrors.unauthorized('Invalid Session') //Invalid or no Token
       }
-      const userId = payload.sub; //get UserId from Cognito Payload
+      const user_id = payload.sub; //get UserId from Cognito Payload
 
       const userSheets = await db('sheets') // get user sheets
-        .where({ owner_id: userId }) //(with owner check)
+        .where({ owner_id: user_id }) //(with owner check)
         .select('id', 'title', 'owner_id', 'created_at', 'updated_at'); // get only relevant data (no snapshot)
 
-      const permissions = await db('permissions').where({ user_id: userId});
+      const permissions = await db('permissions').where({ user_id: user_id});
       let sharedSheets: Array<Sheet> = [];
 
       //load shared sheets if any permissions for userid available
@@ -64,7 +64,11 @@ export default async function (
     handler: async function myHandler(request, reply) {
       const data = request.body as Sheet
 
-      const owner_id = 'demo-user-id' // request.user.id; Cognito/ JWT Token not implemented yet // TODO: Replace with real user ID from auth
+      let payload = await verifyJWT(request.headers.authorization); 
+      if (!payload?.sub) {
+        throw fastify.httpErrors.unauthorized('Invalid Session') 
+      }
+      const user_id = payload.sub; //get owner ID (current User) from Cognito Payload
 
       if (!data?.title || !data?.id) {
         throw fastify.httpErrors.badRequest(
@@ -74,7 +78,7 @@ export default async function (
       await db('sheets').insert({
         id: data.id,
         title: data.title,
-        owner_id: owner_id,
+        owner_id: user_id,
         yjs_snapshot: data.yjs_snapshot,
         updated_at: data.updated_at,
         created_at: data.created_at,
@@ -99,8 +103,12 @@ export default async function (
       if (!isValidUUID(id)) {
         throw fastify.httpErrors.badRequest('Invalid sheet ID');
       }
-      
-      const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
+
+      let payload = await verifyJWT(request.headers.authorization); 
+      if (!payload?.sub) {
+        throw fastify.httpErrors.unauthorized('Invalid Session') 
+      }
+      const user_id = payload.sub;
 
       const sheet = await db('sheets').where({ id }).first();
       if (!sheet) { 
@@ -108,7 +116,7 @@ export default async function (
           'Sheet not found.',
         )
        }
-      if (sheet.owner_id !== userId) { 
+      if (sheet.owner_id !== user_id) { 
         throw fastify.httpErrors.forbidden(
           'Sheet not deleted. Not authorized',
         )
@@ -128,7 +136,11 @@ export default async function (
     method: 'POST',
     schema: {...SHARESheetSchema},
     handler: async function myHandler(request, reply) {
-      const user_id = 'demo-user-id' // request.user.id; Cognito/ JWT Token not implemented yet // TODO: Replace with real user ID from auth
+      let payload = await verifyJWT(request.headers.authorization); 
+      if (!payload?.sub) {
+        throw fastify.httpErrors.unauthorized('Invalid Session') 
+      }
+      const user_id = payload.sub;
 
       const { id } = request.params as { id: string };
       

@@ -1,4 +1,5 @@
 export interface CognitoPayload {
-    sub: string;
+    sub: string; //equals userId
     email?: string;
+    username?: string;
 };
