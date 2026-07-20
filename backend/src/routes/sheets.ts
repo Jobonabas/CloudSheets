@@ -5,6 +5,8 @@ import { hasPermission } from '../utils/permissions.ts'
 import { isValidUUID } from '../utils/isValidUUID.ts'
 import { GETSheetSchema, POSTSheetSchema, DELETESheetSchema, SHARESheetSchema } from '../schemas/sheet.ts'
 import type { Sheet } from '../interfaces/sheet.ts'
+import { verifyJWT } from '../utils/verifyJWT.ts'
+
 
 // export as fastify plugin to index.ts
 export default async function (
@@ -20,7 +22,12 @@ export default async function (
     method: 'GET',
     schema: { ...GETSheetSchema },
     handler: async function myHandler(request, reply) {
-      const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
+      let payload = await verifyJWT(request.headers.authorization); //get Client-Side Stored JWT Token from Request
+      if (!payload?.sub) {
+        throw fastify.httpErrors.unauthorized('Invalid Session') //Invalid or no Token
+      }
+      const userId = payload.sub; //get UserId from Cognito Payload
+
       const userSheets = await db('sheets') // get user sheets
         .where({ owner_id: userId }) //(with owner check)
         .select('id', 'title', 'owner_id', 'created_at', 'updated_at'); // get only relevant data (no snapshot)
