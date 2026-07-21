@@ -7,7 +7,7 @@ describe('EcsExpressStack', () => {
 
   beforeAll(() => {
     const app = new cdk.App();
-    const stack = new EcsExpressStack(app, 'TestEcsExpressStack');
+    const stack = new EcsExpressStack(app, 'TestEcsExpressStack', { environment: 'dev', cognitoUserPoolId: 'test-pool', cognitoClientId: 'test-client', cognitoDomain: 'https://example.com'});
     template = Template.fromStack(stack);
   });
 

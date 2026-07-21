@@ -3,10 +3,18 @@ import { Construct } from 'constructs';
 import { CfnExpressGatewayService } from 'aws-cdk-lib/aws-ecs';
 import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
 
-export class EcsExpressStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
-    super(scope, id, props);
+interface EcsExpressStackConfig {
+  environment: "dev" | "prod";
+  cognitoUserPoolId: string;
+  cognitoClientId: string;
+  cognitoDomain: string;
+}
 
+export class EcsExpressStack extends Stack {
+
+  constructor(scope: Construct, id: string, config: EcsExpressStackConfig, props?: StackProps) {
+    super(scope, id, props);
+    
     // IAM Role: allows ECS to pull images and write logs
     const executionRole = new Role(this, 'EcsExpressExecutionRole', {
       assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -34,6 +42,11 @@ export class EcsExpressStack extends Stack {
       primaryContainer: {
         image: 'public.ecr.aws/docker/library/nginx:latest',
         containerPort: 80,
+        environment: [
+          { name: 'COGNITO_USER_POOL_ID', value: config.cognitoUserPoolId },
+          { name: 'COGNITO_CLIENT_ID', value: config.cognitoClientId },
+          { name: 'COGNITO_DOMAIN', value: config.cognitoDomain },
+        ],
       },
       cpu: '256',
       memory: '512',

@@ -63,5 +63,10 @@ new EcrStack(app, 'EcrStack', {
 
 // ECS Express Mode Hello World stack (replaces deprecated App Runner)
 new EcsExpressStack(app, 'EcsExpressStack', {
+  environment,
+  cognitoUserPoolId: frontendStack.userPoolId,
+  cognitoClientId: frontendStack.userPoolClientId,
+  cognitoDomain: frontendStack.cognitoDomain,
+}, {
   env,
 });
