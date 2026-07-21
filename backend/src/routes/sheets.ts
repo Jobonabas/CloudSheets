@@ -5,7 +5,7 @@ import { hasPermission } from '../utils/permissions.ts'
 import { isValidUUID } from '../utils/isValidUUID.ts'
 import { GETSheetSchema, POSTSheetSchema, DELETESheetSchema, SHARESheetSchema } from '../schemas/sheet.ts'
 import type { Sheet } from '../interfaces/sheet.ts'
-import { verifyJWT } from '../utils/verifyJWT.ts'
+import { verifyUser } from '../utils/verifyUser.ts'
 
 
 // export as fastify plugin to index.ts
@@ -22,7 +22,7 @@ export default async function (
     method: 'GET',
     schema: { ...GETSheetSchema },
     handler: async function myHandler(request, reply) {
-      let payload = await verifyJWT(request.headers.authorization); //get Client-Side Stored JWT Token from Request
+      let payload = await verifyUser(request.headers.authorization); //get Client-Side Stored JWT Token from Request
       if (!payload?.sub) {
         throw fastify.httpErrors.unauthorized('Invalid Session') //Invalid or no Token
       }
@@ -64,7 +64,7 @@ export default async function (
     handler: async function myHandler(request, reply) {
       const data = request.body as Sheet
 
-      let payload = await verifyJWT(request.headers.authorization); 
+      let payload = await verifyUser(request.headers.authorization); 
       if (!payload?.sub) {
         throw fastify.httpErrors.unauthorized('Invalid Session') 
       }
@@ -98,19 +98,19 @@ export default async function (
     method: 'DELETE',
     schema: { ...DELETESheetSchema },
     handler: async function myHandler(request, reply) {
-      const { id } = request.params as { id: string };
+      const { id: sheet_id } = request.params as { id: string };
 
-      if (!isValidUUID(id)) {
+      if (!isValidUUID(sheet_id)) {
         throw fastify.httpErrors.badRequest('Invalid sheet ID');
       }
 
-      let payload = await verifyJWT(request.headers.authorization); 
+      let payload = await verifyUser(request.headers.authorization); 
       if (!payload?.sub) {
         throw fastify.httpErrors.unauthorized('Invalid Session') 
       }
       const user_id = payload.sub;
 
-      const sheet = await db('sheets').where({ id }).first();
+      const sheet = await db('sheets').where({ id: sheet_id }).first();
       if (!sheet) { 
         throw fastify.httpErrors.notFound(
           'Sheet not found.',
@@ -121,7 +121,7 @@ export default async function (
           'Sheet not deleted. Not authorized',
         )
        }
-      await db('sheets').where({ id }).del(); // delete sheet
+      await db('sheets').where({ id: sheet_id }).del(); // delete sheet
       reply.send({
         message: 'Sheet deleted successfully',
         success: true,
@@ -136,13 +136,13 @@ export default async function (
     method: 'POST',
     schema: {...SHARESheetSchema},
     handler: async function myHandler(request, reply) {
-      let payload = await verifyJWT(request.headers.authorization); 
+      let payload = await verifyUser(request.headers.authorization); 
       if (!payload?.sub) {
         throw fastify.httpErrors.unauthorized('Invalid Session') 
       }
       const user_id = payload.sub;
 
-      const { sheet_id } = request.params as { sheet_id: string };
+      const { id: sheet_id } = request.params as { id: string };
       
       if (!isValidUUID(sheet_id)) {
         throw fastify.httpErrors.badRequest('Invalid sheet ID');
@@ -150,7 +150,7 @@ export default async function (
 
       const { email, role } = request.body as { email: string; role: string };
       
-      const sheet = await db('sheets').where({ sheet_id }).first();
+      const sheet = await db('sheets').where({ id: sheet_id }).first();
       if (!sheet) {
         throw fastify.httpErrors.notFound('Sheet not found');
       }
