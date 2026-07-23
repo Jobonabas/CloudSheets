@@ -34,8 +34,13 @@ This directory contains the backend service for CloudSheets, built with Node.js,
 
 - **Test:**
     ```bash
+    # Run server + tests together (single command)
+    npm run test:all`
+
+    # Alternatively, run tests against an already running server
     npm test
     ```
+    `npm run test:all` starts the local server with test environment overrides (`.env.local`) to bypass Cognito Auth, waits for port `8080` to be ready, and runs Vitest in watch mode.
 
 - **Migrations:**
     - `npm run migrate:make` — Create a new migration file.

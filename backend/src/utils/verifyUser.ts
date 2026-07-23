@@ -7,6 +7,7 @@ const verifier = CognitoJwtVerifier.create({
   tokenUse: 'access',
   clientId: process.env.COGNITO_CLIENT_ID!,
 });
+const cognitoDomain = process.env.COGNITO_DOMAIN;
 
 export async function verifyUser(authHeader?: string): Promise<CognitoPayload | null> {
     const token = authHeader?.startsWith('Bearer ')
@@ -24,10 +25,16 @@ export async function verifyUser(authHeader?: string): Promise<CognitoPayload | 
         console.log("Token is valid. Payload:", payload); //returns Cognito payload with userid
 
         if(!await db('users').where({ id: payload.sub })) {
-            //first authentication of this user: add user to DB user table
-            await db('sheets').insert({
+            //first authentication of this user: add user to DB user table with fetched email adress
+
+            let email = payload.email
+            if(!email) {
+                let additional_userdata = await fetch('${cognitoDomain}/oauth2/userInfo' )
+            }
+
+            await db('users').insert({
             id: payload.sub,
-            email: // TODO: insert users into user table 
+            email: email // TODO: insert users into user table 
       })
         } 
 

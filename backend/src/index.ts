@@ -4,6 +4,7 @@ import sheets_ws_Routes from './routes/sheets-ws.ts'
 import healthRoutes from './routes/health.ts';
 import { ws_server } from './webSocket_server.ts'
 import { customErrorHandler } from './utils/errorHandler.ts';
+import 'dotenv/config';
 
 console.log("geiler Backend Server starting...")
 
