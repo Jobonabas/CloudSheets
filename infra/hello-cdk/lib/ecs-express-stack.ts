@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import { CfnExpressGatewayService } from 'aws-cdk-lib/aws-ecs';
 import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
 import { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
+import { Vpc, ISecurityGroup, ISubnet } from 'aws-cdk-lib/aws-ec2';
 
 interface EcsExpressStackConfig {
   environment: "dev" | "prod";
@@ -10,6 +11,8 @@ interface EcsExpressStackConfig {
   cognitoClientId: string;
   cognitoDomain: string;
   database: DatabaseInstance;
+  vpc: Vpc;
+  backendSecurityGroup: ISecurityGroup;
 }
 
 export class EcsExpressStack extends Stack {
@@ -59,6 +62,10 @@ export class EcsExpressStack extends Stack {
           { name: 'COGNITO_DOMAIN', value: config.cognitoDomain },
           { name: 'DATABASE_URL', value: databaseUrl }
         ],
+      },
+      networkConfiguration: {
+        subnets: config.vpc.privateSubnets.map((subnet: ISubnet) => subnet.subnetId),
+        securityGroups: [config.backendSecurityGroup.securityGroupId],
       },
       cpu: '256',
       memory: '512',
