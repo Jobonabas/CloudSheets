@@ -12,7 +12,7 @@ export default {
   development: {
     client: 'pg',
     connection: {
-      connectionString: process.env.DATABASE_URL,
+      connectionString: process.env.DATABASE_URL, //hardcoded default (local)
     },
     pool: {
       min: 2,
@@ -29,7 +29,7 @@ export default {
   production: {
     client: 'pg',
     connection: {
-      connectionString: process.env.DATABASE_URL,
+      connectionString: process.env.DATABASE_URL, //injected from CDK in runtime
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false} : false, //activate SSL
     },
     pool: {

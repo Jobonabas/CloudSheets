@@ -11,6 +11,7 @@ export interface BackendStackConfig {
  
  export class BackendStack extends Stack {
   
+  public postgresDB: DatabaseInstance;
   
   constructor(scope: Construct, id: string, config: BackendStackConfig, props?: StackProps) {
      super(scope, id, props);
@@ -36,7 +37,7 @@ export interface BackendStackConfig {
       
 
       //RDS PostgreSQL Instance (db.t3.micro)
-      new DatabaseInstance(this, 'PostgresDB', { 
+      const postgresDB = new DatabaseInstance(this, 'PostgresDB', { 
         engine: DatabaseInstanceEngine.postgres({version: PostgresEngineVersion.VER_18_2}),
         instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
         vpc,
@@ -47,7 +48,6 @@ export interface BackendStackConfig {
         backupRetention: Duration.days(0), //backups stored for 0 days
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete db when stack is removed for dev
       });
-
       
    }
  }

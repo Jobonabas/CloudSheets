@@ -2,12 +2,14 @@ import { Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { CfnExpressGatewayService } from 'aws-cdk-lib/aws-ecs';
 import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
+import { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
 
 interface EcsExpressStackConfig {
   environment: "dev" | "prod";
   cognitoUserPoolId: string;
   cognitoClientId: string;
   cognitoDomain: string;
+  database: DatabaseInstance;
 }
 
 export class EcsExpressStack extends Stack {
@@ -34,6 +36,15 @@ export class EcsExpressStack extends Stack {
       ],
     });
 
+    // DB Setup
+    const dbHost = config.database.dbInstanceEndpointAddress;
+    const dbPort = config.database.dbInstanceEndpointPort;
+    const dbName = 'cloudsheet';
+    const dbUser = config.database.secret?.secretValueFromJson('username').unsafeUnwrap() ?? 'cloudsheet'; // Unpack database credentials from AWS Secrets Manager
+    const dbPass = config.database.secret?.secretValueFromJson('password').unsafeUnwrap() ?? '';
+
+    const databaseUrl = `postgresql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
+
     // ECS Express Mode service — replaces App Runner
     const service = new CfnExpressGatewayService(this, 'ExpressService', {
       serviceName: 'cloudsheets-hello-world',
@@ -46,6 +57,7 @@ export class EcsExpressStack extends Stack {
           { name: 'COGNITO_USER_POOL_ID', value: config.cognitoUserPoolId },
           { name: 'COGNITO_CLIENT_ID', value: config.cognitoClientId },
           { name: 'COGNITO_DOMAIN', value: config.cognitoDomain },
+          { name: 'DATABASE_URL', value: databaseUrl }
         ],
       },
       cpu: '256',
