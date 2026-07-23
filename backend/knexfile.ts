@@ -30,6 +30,7 @@ export default {
     client: 'pg',
     connection: {
       connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false} : false, //activate SSL
     },
     pool: {
       min: 2,
@@ -39,8 +40,8 @@ export default {
       directory: __dirname + '/migrations',
       tableName: 'knex_migrations',
     },
-    seeds: {
-      directory: __dirname + '/seeds/development',
-    },
+    // seeds: {
+    //   directory: __dirname + '/seeds/production',
+    // },
   },
 }
