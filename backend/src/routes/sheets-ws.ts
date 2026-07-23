@@ -5,6 +5,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { ws_server } from '../webSocket_server.ts'
 import { hasPermission } from '../utils/permissions.ts'
 import { WSSheetSchema } from '../schemas/sheet.ts';
+import { verifyUser } from '../utils/verifyUser.ts'
 
 // export as fastify plugin to index.ts
 export default async function (
@@ -24,8 +25,12 @@ export default async function (
     schema: {...WSSheetSchema},
     wsHandler: async (connection, request) => {
       const { id } = request.params as { id: string };
-      const userId = 'demo-user-id'; // TODO: Replace with real user ID from auth
-      //const token = extractToken(req.headers.authorization);
+
+      let payload = await verifyUser(request.headers.authorization);
+      if (!payload?.sub) {
+        throw fastify.httpErrors.unauthorized('Invalid Session') 
+      }
+      const user_id = payload.sub;
 
       const sheet = await db('sheets').where({ id }).first();
       if (!sheet) { 
@@ -38,12 +43,12 @@ export default async function (
       }
       // Permission check
       var allowed = false;
-      if (sheet.owner_id === userId) {
+      if (sheet.owner_id === user_id) {
         //immediate access if owner
         allowed = true;
       } else {
         //if not owner check for permissions (min: viewer)
-        allowed = await hasPermission(userId, id, 'viewer')
+        allowed = await hasPermission(user_id, id, 'viewer')
       }
       if (!allowed) {
         connection.socket.send(JSON.stringify({ message: 'No access', success: false }));
@@ -59,7 +64,7 @@ export default async function (
       });
       
       // Open Websocket Connection for Document (identified by database id)
-      ws_server.handleConnection(connection.socket, webRequest, { docName: id, userId: userId });
+      ws_server.handleConnection(connection.socket, webRequest, { docName: id, userId: user_id });
 
     },
     handler: async function myHandler(request, reply) {
