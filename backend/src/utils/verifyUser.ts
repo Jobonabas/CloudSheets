@@ -15,7 +15,12 @@ export async function verifyUser(authHeader?: string): Promise<CognitoPayload | 
         : undefined;
 
     console.log("Extracted Token:", token) //DEV!
-        
+    
+    if (process.env.NODE_ENV === 'test' && process.env.AUTH_BYPASS === 'true') {
+        //Bypass if local Test Env  
+        return { sub: 'demo-user-id', email: 'demo@example.com'};
+    }
+
     if(!token) {
         return null; //auth not possible
     }
@@ -24,23 +29,29 @@ export async function verifyUser(authHeader?: string): Promise<CognitoPayload | 
         const payload = await verifier.verify(token) as CognitoPayload
         console.log("Token is valid. Payload:", payload); //returns Cognito payload with userid
 
-        if(!await db('users').where({ id: payload.sub })) {
+        const user_exists = await db('users').where({ id: payload.sub }).first();
+        if(!user_exists) {
             //first authentication of this user: add user to DB user table with fetched email adress
-
             let email = payload.email
             if(!email) {
-                let additional_userdata = await fetch('${cognitoDomain}/oauth2/userInfo' )
+                let response = await fetch(`${cognitoDomain}/oauth2/userInfo`, {
+                    method: 'GET',
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    }
+                } );
+                let additional_userdata = await response.json();
+                email = additional_userdata.email
             }
-
             await db('users').insert({
             id: payload.sub,
-            email: email // TODO: insert users into user table 
-      })
+            email: email
+            });
         } 
 
         return payload;
-    } catch {
-        console.log("Token not valid!");
+    } catch(err) {
+        console.error("Token verification failed!: ", err);
         return null;
     }
 }
