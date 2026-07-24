@@ -22,6 +22,10 @@ interface CognitoConfig {
 }*/
 
 export class FrontendStack extends Stack {
+  public readonly userPoolId: string;
+  public readonly userPoolClientId: string;
+  public readonly cognitoDomain: string;
+
   constructor(scope: Construct, id: string, config: FrontendStackConfig, props?: StackProps) {
     super(scope, id, props);
       
@@ -123,15 +127,19 @@ export class FrontendStack extends Stack {
         },
       });
 
+      this.userPoolId = userPool.userPoolId;
+      this.userPoolClientId = userPoolClient.userPoolClientId;
+      this.cognitoDomain = providerDomain.baseUrl();
+
       new CfnOutput(this, 'UserPoolId', {
-        value: userPool.userPoolId
+        value: this.userPoolId
       });
       
       new CfnOutput(this, 'UserPoolClientId', {
-        value: userPoolClient.userPoolClientId,
+        value: this.userPoolClientId,
       });
       new CfnOutput(this, 'CognitoDomainUrl', {
-        value: providerDomain.baseUrl(),
+        value: this.cognitoDomain
       });
 
       
@@ -139,11 +147,11 @@ export class FrontendStack extends Stack {
   sources: [
     s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist')),
     s3deploy.Source.jsonData('config.json', {  // ← direkt hier!
-      authority: `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`,
-      clientId: userPoolClient.userPoolClientId,
+      authority: `https://cognito-idp.${this.region}.amazonaws.com/${this.userPoolId}`,
+      clientId: this.userPoolClientId,
       callbackUrl: baseUrl,
       logoutUrl: baseUrl,
-      cognitoDomain: providerDomain.baseUrl(),
+      cognitoDomain: this.cognitoDomain,
     }),
   ],
   destinationBucket: bucket,

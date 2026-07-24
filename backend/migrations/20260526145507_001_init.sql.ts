@@ -4,7 +4,7 @@ import type { Knex } from "knex";
 export async function up(knex: Knex): Promise<void> {
   // Users table
   await knex.schema.createTable('users', table => {
-    table.string('id').primary(); // matching Cognito ID
+    table.string('id').primary(); // matching Cognito ID/Sub
     table.string('email').notNullable().unique();
     table.timestamp('created_at').defaultTo(knex.fn.now());
   });

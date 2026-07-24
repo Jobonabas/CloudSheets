@@ -33,9 +33,14 @@ This directory contains the backend service for CloudSheets, built with Node.js,
     Starts the server in watch mode using `tsx`, automatically restarting on code changes.
 
 - **Test:**
+    Run server + tests together (single command)
     ```bash
+    npm run test:all`
     npm test
     ```
+    Alternatively, run tests against an already running server
+
+    `npm run test:all` starts the local server with test environment overrides (`.env.local`) to bypass Cognito Auth, waits for port `8080` to be ready, and runs Vitest in watch mode.
 
 - **Migrations:**
     - `npm run migrate:make` — Create a new migration file.

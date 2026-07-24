@@ -63,5 +63,15 @@ new EcrStack(app, 'EcrStack', {
 
 // ECS Express Mode Hello World stack (replaces deprecated App Runner)
 new EcsExpressStack(app, 'EcsExpressStack', {
+  environment,
+  //Cross Stack References:
+  cognitoUserPoolId: frontendStack.userPoolId,
+  cognitoClientId: frontendStack.userPoolClientId,
+  cognitoDomain: frontendStack.cognitoDomain,
+  // Config:
+  database: backendStack.postgresDB,
+  vpc: backendStack.vpc,
+  backendSecurityGroup: backendStack.backendSG,
+}, {
   env,
 });

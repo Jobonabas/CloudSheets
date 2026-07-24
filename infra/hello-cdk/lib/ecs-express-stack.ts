@@ -2,11 +2,24 @@ import { Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { CfnExpressGatewayService } from 'aws-cdk-lib/aws-ecs';
 import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
+import { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
+import { Vpc, ISecurityGroup, ISubnet } from 'aws-cdk-lib/aws-ec2';
+
+interface EcsExpressStackConfig {
+  environment: "dev" | "prod";
+  cognitoUserPoolId: string;
+  cognitoClientId: string;
+  cognitoDomain: string;
+  database: DatabaseInstance;
+  vpc: Vpc;
+  backendSecurityGroup: ISecurityGroup;
+}
 
 export class EcsExpressStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
-    super(scope, id, props);
 
+  constructor(scope: Construct, id: string, config: EcsExpressStackConfig, props?: StackProps) {
+    super(scope, id, props);
+    
     // IAM Role: allows ECS to pull images and write logs
     const executionRole = new Role(this, 'EcsExpressExecutionRole', {
       assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -26,6 +39,15 @@ export class EcsExpressStack extends Stack {
       ],
     });
 
+    // DB Setup
+    const dbHost = config.database.dbInstanceEndpointAddress;
+    const dbPort = config.database.dbInstanceEndpointPort;
+    const dbName = 'cloudsheet';
+    const dbUser = config.database.secret?.secretValueFromJson('username').unsafeUnwrap() ?? 'cloudsheet'; // Unpack database credentials from AWS Secrets Manager
+    const dbPass = config.database.secret?.secretValueFromJson('password').unsafeUnwrap() ?? '';
+
+    const databaseUrl = `postgresql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
+
     // ECS Express Mode service — replaces App Runner
     const service = new CfnExpressGatewayService(this, 'ExpressService', {
       serviceName: 'cloudsheets-hello-world',
@@ -34,6 +56,16 @@ export class EcsExpressStack extends Stack {
       primaryContainer: {
         image: 'public.ecr.aws/docker/library/nginx:latest',
         containerPort: 80,
+        environment: [
+          { name: 'COGNITO_USER_POOL_ID', value: config.cognitoUserPoolId },
+          { name: 'COGNITO_CLIENT_ID', value: config.cognitoClientId },
+          { name: 'COGNITO_DOMAIN', value: config.cognitoDomain },
+          { name: 'DATABASE_URL', value: databaseUrl }
+        ],
+      },
+      networkConfiguration: {
+        subnets: config.vpc.privateSubnets.map((subnet: ISubnet) => subnet.subnetId),
+        securityGroups: [config.backendSecurityGroup.securityGroupId],
       },
       cpu: '256',
       memory: '512',

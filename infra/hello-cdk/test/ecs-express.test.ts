@@ -1,13 +1,26 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { Template } from 'aws-cdk-lib/assertions';
 import { EcsExpressStack } from '../lib/ecs-express-stack';
+import { BackendStack } from '../lib/backend-stack';
 
 describe('EcsExpressStack', () => {
   let template: Template;
 
   beforeAll(() => {
     const app = new cdk.App();
-    const stack = new EcsExpressStack(app, 'TestEcsExpressStack');
+
+    const backendStack = new BackendStack(app, 'TestBackendStack', {
+      environment: 'dev',
+    })
+    const stack = new EcsExpressStack(app, 'TestEcsExpressStack', {
+       environment: 'dev', 
+       cognitoUserPoolId: 'test-pool', 
+       cognitoClientId: 'test-client', 
+       cognitoDomain: 'https://example.com', 
+       vpc: backendStack.vpc, 
+       backendSecurityGroup: backendStack.backendSG,
+       database: backendStack.postgresDB
+      });
     template = Template.fromStack(stack);
   });
 
