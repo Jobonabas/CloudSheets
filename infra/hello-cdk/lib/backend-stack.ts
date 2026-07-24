@@ -39,7 +39,7 @@ export interface BackendStackConfig {
       
 
       //RDS PostgreSQL Instance (db.t3.micro)
-      const postgresDB = new DatabaseInstance(this, 'PostgresDB', { 
+      this.postgresDB = new DatabaseInstance(this, 'PostgresDB', { 
         engine: DatabaseInstanceEngine.postgres({version: PostgresEngineVersion.VER_18_2}),
         instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
         vpc: this.vpc,
