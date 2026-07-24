@@ -23,6 +23,7 @@ export default async function (
     schema: { ...GETSheetSchema },
     handler: async function myHandler(request, reply) {
       let payload = await verifyUser(request.headers.authorization); //get Client-Side Stored JWT Token from Request
+      
       if (!payload?.sub) {
         throw fastify.httpErrors.unauthorized('Invalid Session') //Invalid or no Token
       }
