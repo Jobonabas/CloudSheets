@@ -1,14 +1,26 @@
 import { Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs';
 import db from './db.ts'
+import { verifyUser } from './utils/verifyUser.ts'
 
 // initialize Hocuspocus Websocket Server
 export const ws_server = new Hocuspocus({
     //TODO: add hooks for authentication/persistence here https://tiptap.dev/docs/hocuspocus/server/hooks
-    // async onAuthenticate({ token }) {
+    async onAuthenticate({ token }) {
     //validate tokens before connection established
-    //   return { userId: '123', permissions: ['read', 'write'] }
-    // },
+    const payload = await verifyUser(token)
+
+    if (!payload?.sub) {
+        throw new Error('Unauthorized: Invalid token or user check failed') 
+      }
+
+    return {
+        user: { 
+            user_id: payload.sub, 
+            email: payload.email
+        },
+      }
+    },
     async onConnect(data) {
     //Logging
     console.log(`New connection to sheet: ${data.documentName}`)

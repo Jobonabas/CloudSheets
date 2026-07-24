@@ -68,6 +68,7 @@ new EcsExpressStack(app, 'EcsExpressStack', {
   cognitoUserPoolId: frontendStack.userPoolId,
   cognitoClientId: frontendStack.userPoolClientId,
   cognitoDomain: frontendStack.cognitoDomain,
+  // Config:
   database: backendStack.postgresDB,
   vpc: backendStack.vpc,
   backendSecurityGroup: backendStack.backendSG,
