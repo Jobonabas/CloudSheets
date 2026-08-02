@@ -49,7 +49,9 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgres://cloudsheet:cloudsheet@localhost:5432/cloudsheet
+      # 127.0.0.1, not localhost: Node >=17 resolves localhost to ::1 first, but the
+      # postgres service container only publishes its port on IPv4 -> ECONNREFUSED ::1:5432.
+      DATABASE_URL: postgres://cloudsheet:cloudsheet@127.0.0.1:5432/cloudsheet
       NODE_ENV: test
       AUTH_BYPASS: "true"
       # verifyUser.ts builds the Cognito verifier lazily, but aws-jwt-verify still
