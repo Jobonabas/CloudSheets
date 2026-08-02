@@ -2,11 +2,19 @@ import { CognitoJwtVerifier } from "aws-jwt-verify";
 import type { CognitoPayload } from "../interfaces/cognitoPayload.ts";
 import db from '../db.ts'
 
-const verifier = CognitoJwtVerifier.create({
-  userPoolId: process.env.COGNITO_USER_POOL_ID!,
-  tokenUse: 'access',
-  clientId: process.env.COGNITO_CLIENT_ID!,
-});
+// Lazy initialization: CognitoJwtVerifier.create() validates COGNITO_USER_POOL_ID
+// eagerly and throws if it is missing or malformed. Building it on first use keeps
+// the module importable in environments without Cognito config (e.g. AUTH_BYPASS in CI).
+let verifier: ReturnType<typeof CognitoJwtVerifier.create> | undefined;
+
+function getVerifier() {
+  return (verifier ??= CognitoJwtVerifier.create({
+    userPoolId: process.env.COGNITO_USER_POOL_ID!,
+    tokenUse: 'access',
+    clientId: process.env.COGNITO_CLIENT_ID!,
+  }));
+}
+
 const cognitoDomain = process.env.COGNITO_DOMAIN;
 
 export async function verifyUser(authHeader?: string): Promise<CognitoPayload | null> {
@@ -26,7 +34,7 @@ export async function verifyUser(authHeader?: string): Promise<CognitoPayload | 
     }
 
     try{
-        const payload = await verifier.verify(token) as CognitoPayload
+        const payload = await getVerifier().verify(token) as CognitoPayload
         console.log("Token is valid. Payload:", payload); //returns Cognito payload with userid
 
         const user_exists = await db('users').where({ id: payload.sub }).first();
