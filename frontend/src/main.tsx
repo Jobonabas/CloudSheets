@@ -37,7 +37,7 @@ root.render(
 
 
 
-}catch(error){
+} catch {
   const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
   root.render(
       <div style={{ padding: '20px', color: 'red', fontFamily: 'sans-serif' }}>
