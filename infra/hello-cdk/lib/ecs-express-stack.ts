@@ -5,11 +5,17 @@ import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
 import { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
 import { Vpc, ISecurityGroup, ISubnet } from 'aws-cdk-lib/aws-ec2';
 
-interface EcsExpressStackConfig {
+export interface EcsExpressStackConfig {
   environment: "dev" | "prod";
   cognitoUserPoolId: string;
   cognitoClientId: string;
   cognitoDomain: string;
+  /** Full ECR image URI including tag, e.g. <acct>.dkr.ecr.<region>.amazonaws.com/cloudsheets-backend-dev:<sha> */
+  imageUri: string;
+  /** Port the backend listens on. Must match PORT in the container. */
+  containerPort?: number;
+  /** Path the ECS Express health check probes. */
+  healthCheckPath?: string;
   database: DatabaseInstance;
   vpc: Vpc;
   backendSecurityGroup: ISecurityGroup;
@@ -48,19 +54,26 @@ export class EcsExpressStack extends Stack {
 
     const databaseUrl = `postgresql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
 
+    const containerPort = config.containerPort ?? 8080;
+
     // ECS Express Mode service — replaces App Runner
     const service = new CfnExpressGatewayService(this, 'ExpressService', {
-      serviceName: 'cloudsheets-hello-world',
+      serviceName: 'cloudsheets-backend',
       executionRoleArn: executionRole.roleArn,
       infrastructureRoleArn: infrastructureRole.roleArn,
       primaryContainer: {
-        image: 'public.ecr.aws/docker/library/nginx:latest',
-        containerPort: 80,
+        image: config.imageUri,
+        containerPort,
         environment: [
           { name: 'COGNITO_USER_POOL_ID', value: config.cognitoUserPoolId },
           { name: 'COGNITO_CLIENT_ID', value: config.cognitoClientId },
           { name: 'COGNITO_DOMAIN', value: config.cognitoDomain },
-          { name: 'DATABASE_URL', value: databaseUrl }
+          { name: 'DATABASE_URL', value: databaseUrl },
+          // Without NODE_ENV=production, src/db.ts falls back to the knexfile
+          // "development" section, which has SSL disabled and fails against RDS.
+          { name: 'NODE_ENV', value: 'production' },
+          { name: 'DB_SSL', value: 'true' },
+          { name: 'PORT', value: String(containerPort) }
         ],
       },
       networkConfiguration: {
@@ -69,7 +82,7 @@ export class EcsExpressStack extends Stack {
       },
       cpu: '256',
       memory: '512',
-      healthCheckPath: '/',
+      healthCheckPath: config.healthCheckPath ?? '/health',
     });
 
     new CfnOutput(this, 'EcsExpressEndpoint', {

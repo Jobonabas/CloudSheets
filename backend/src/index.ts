@@ -43,9 +43,11 @@ async function start(): Promise<void> {
   await server.register(sheets_ws_Routes);
   await server.register(healthRoutes);
 
+  // Bind to 0.0.0.0 so the server is reachable from outside the container
+  // (ECS Express health checks and the load balancer cannot reach 127.0.0.1).
   const address = await server.listen({
-    host: '127.0.0.1',
-    port: 8080
+    host: '0.0.0.0',
+    port: Number(process.env.PORT ?? '8080')
   });
   console.log(`Server listening at ${address}`);
 }
