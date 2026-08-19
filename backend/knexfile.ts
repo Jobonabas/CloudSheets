@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { buildConnection } from './src/config/database.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,9 +12,7 @@ const __dirname = dirname(__filename);
 export default {
   development: {
     client: 'pg',
-    connection: {
-      connectionString: process.env.DATABASE_URL, //hardcoded default (local)
-    },
+    connection: buildConnection(), //DATABASE_URL locally, discrete DB_* vars otherwise
     pool: {
       min: 2,
       max: 10,
@@ -28,10 +27,9 @@ export default {
   },
   production: {
     client: 'pg',
-    connection: {
-      connectionString: process.env.DATABASE_URL, //injected from CDK in runtime
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false} : false, //activate SSL
-    },
+    //On ECS: DB_HOST/PORT/NAME are plain env vars, DB_USERNAME/DB_PASSWORD are injected
+    //by the ECS agent from SSM Parameter Store. SSL is enabled via DB_SSL=true.
+    connection: buildConnection(),
     pool: {
       min: 2,
       max: 10,
