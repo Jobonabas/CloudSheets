@@ -4,6 +4,7 @@ import { CfnExpressGatewayService } from 'aws-cdk-lib/aws-ecs';
 import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
 import { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
 import { Vpc, ISecurityGroup, ISubnet } from 'aws-cdk-lib/aws-ec2';
+import { DbCredentialsToSsm, dbParameterArn } from './db-credentials-parameter';
 
 export interface EcsExpressStackConfig {
   environment: "dev" | "prod";
@@ -17,6 +18,8 @@ export interface EcsExpressStackConfig {
   /** Path the ECS Express health check probes. */
   healthCheckPath?: string;
   database: DatabaseInstance;
+  /** Parameter Store copies of the DB credentials, created by BackendStack. */
+  dbCredentials: DbCredentialsToSsm;
   vpc: Vpc;
   backendSecurityGroup: ISecurityGroup;
 }
@@ -45,14 +48,18 @@ export class EcsExpressStack extends Stack {
       ],
     });
 
-    // DB Setup
+    // DB Setup -- endpoint details are not sensitive and travel as plain env vars.
+    // The credentials do NOT: they are read from SSM Parameter Store by the ECS agent
+    // at task start (see `secrets` below). Resolving them here with unsafeUnwrap()
+    // would bake the password into an ordinary container environment variable, where
+    // anyone with ecs:DescribeServices could read it.
     const dbHost = config.database.dbInstanceEndpointAddress;
     const dbPort = config.database.dbInstanceEndpointPort;
     const dbName = 'cloudsheet';
-    const dbUser = config.database.secret?.secretValueFromJson('username').unsafeUnwrap() ?? 'cloudsheet'; // Unpack database credentials from AWS Secrets Manager
-    const dbPass = config.database.secret?.secretValueFromJson('password').unsafeUnwrap() ?? '';
 
-    const databaseUrl = `postgresql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
+    // The ECS *execution* role fetches secrets before the container starts, so the
+    // grant belongs there rather than on the infrastructure role.
+    config.dbCredentials.grantRead(executionRole);
 
     const containerPort = config.containerPort ?? 8080;
 
@@ -68,12 +75,26 @@ export class EcsExpressStack extends Stack {
           { name: 'COGNITO_USER_POOL_ID', value: config.cognitoUserPoolId },
           { name: 'COGNITO_CLIENT_ID', value: config.cognitoClientId },
           { name: 'COGNITO_DOMAIN', value: config.cognitoDomain },
-          { name: 'DATABASE_URL', value: databaseUrl },
+          { name: 'DB_HOST', value: dbHost },
+          { name: 'DB_PORT', value: dbPort },
+          { name: 'DB_NAME', value: dbName },
           // Without NODE_ENV=production, src/db.ts falls back to the knexfile
           // "development" section, which has SSL disabled and fails against RDS.
           { name: 'NODE_ENV', value: 'production' },
           { name: 'DB_SSL', value: 'true' },
           { name: 'PORT', value: String(containerPort) }
+        ],
+        // Resolved by the ECS agent from Parameter Store when the task starts, then
+        // injected as environment variables into the container only.
+        secrets: [
+          {
+            name: 'DB_USERNAME',
+            valueFrom: dbParameterArn(this, config.dbCredentials.usernameParameterName),
+          },
+          {
+            name: 'DB_PASSWORD',
+            valueFrom: dbParameterArn(this, config.dbCredentials.passwordParameterName),
+          },
         ],
       },
       networkConfiguration: {

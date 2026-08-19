@@ -3,17 +3,21 @@ import { Construct } from 'constructs';
 import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion, StorageType } from 'aws-cdk-lib/aws-rds';
 import { InstanceType, Vpc} from 'aws-cdk-lib/aws-ec2';
 import { SecurityGroup, Peer, Port, InstanceClass, InstanceSize} from 'aws-cdk-lib/aws-ec2';
+import { DbCredentialsToSsm } from './db-credentials-parameter';
 
 
 export interface BackendStackConfig {
   environment: 'dev' | 'prod';
+  /** Bump to force a re-sync of the credentials into Parameter Store. */
+  dbSyncVersion?: string;
 }
- 
+
  export class BackendStack extends Stack {
-  
+
   public readonly vpc: Vpc;
   public readonly backendSG: SecurityGroup;
   public readonly postgresDB: DatabaseInstance;
+  public readonly dbCredentials: DbCredentialsToSsm;
 
   constructor(scope: Construct, id: string, config: BackendStackConfig, props?: StackProps) {
      super(scope, id, props);
@@ -50,6 +54,15 @@ export interface BackendStackConfig {
         backupRetention: Duration.days(0), //backups stored for 0 days
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete db when stack is removed for dev
       });
-      
+
+      // Copy the generated credentials into SSM Parameter Store so ECS can inject them
+      // at task start. RDS keeps its Secrets Manager secret as the source of truth --
+      // this is the delivery mechanism to the backend, not a replacement store.
+      this.dbCredentials = new DbCredentialsToSsm(this, 'DbCredentials', {
+        secret: this.postgresDB.secret!,
+        environment: config.environment,
+        syncVersion: config.dbSyncVersion,
+      });
+
    }
  }
