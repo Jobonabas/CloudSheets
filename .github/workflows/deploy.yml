@@ -274,8 +274,11 @@ jobs:
           echo "Health check never succeeded at $URL" >&2
           exit 1
 
-      # cdk.out is deliberately NOT uploaded as an artifact: ecs-express-stack.ts
-      # resolves the RDS secret into the template via unsafeUnwrap().
+      # cdk.out is still not uploaded as an artifact. Since #20 the DB credentials no
+      # longer reach the ECS template (they are injected from SSM Parameter Store at
+      # task start), but the synthesized BackendStack template legitimately contains
+      # the RDS {{resolve:secretsmanager:...}} reference, so there is nothing to gain
+      # from publishing it.
       - name: Job summary
         if: always()
         run: |
