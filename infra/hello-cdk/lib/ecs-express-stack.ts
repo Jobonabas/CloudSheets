@@ -16,7 +16,7 @@ interface EcsExpressStackConfig {
 }
 
 export class EcsExpressStack extends Stack {
-
+  public readonly endpoint: string;
   constructor(scope: Construct, id: string, config: EcsExpressStackConfig, props?: StackProps) {
     super(scope, id, props);
     
@@ -50,7 +50,7 @@ export class EcsExpressStack extends Stack {
 
     // ECS Express Mode service — replaces App Runner
     const service = new CfnExpressGatewayService(this, 'ExpressService', {
-      serviceName: 'cloudsheets-hello-world',
+      serviceName: `cloudsheets-${config.environment}`,
       executionRoleArn: executionRole.roleArn,
       infrastructureRoleArn: infrastructureRole.roleArn,
       primaryContainer: {
@@ -81,5 +81,7 @@ export class EcsExpressStack extends Stack {
       value: service.attrServiceArn,
       description: 'ECS Express Service ARN',
     });
+
+    this.endpoint = service.attrEndpoint;
   }
 }

@@ -1,17 +1,17 @@
-// App.js
-
 import { useAuth } from "react-oidc-context";
+import Overview from "../src/components/Overview"; // Pfad an deine Struktur anpassen
 
 interface AppConfig {
   clientId: string;
   logoutUrl: string;
   cognitoDomain: string;
+  apiUrl: string; // NEU
 }
 interface AppProps {
   config: AppConfig;
 }
 
-function App({config}: AppProps) {
+function App({ config }: AppProps) {
   const auth = useAuth();
 
   const signOutRedirect = () => {
@@ -20,15 +20,6 @@ function App({config}: AppProps) {
     const cognitoDomain = config.cognitoDomain;
     window.location.href = `${cognitoDomain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
   };
-
-
-/*
-    const clientId = "5l7q2l2q5ic94jj0egcl9hccfk";
-    const logoutUri = "<logout uri>";
-    const cognitoDomain = "https://eu-north-1rf4js7y9l.auth.eu-north-1.amazoncognito.com";
-    window.location.href = `${cognitoDomain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
-*/
-
 
   if (auth.isLoading) {
     return <div>Loading...</div>;
@@ -41,12 +32,11 @@ function App({config}: AppProps) {
   if (auth.isAuthenticated) {
     return (
       <div>
-        <pre> Hello: {auth.user?.profile.email} </pre>
-        <pre> ID Token: {auth.user?.id_token} </pre>
-        <pre> Access Token: {auth.user?.access_token} </pre>
-        <pre> Refresh Token: {auth.user?.refresh_token} </pre>
-
-        <button onClick={() => auth.removeUser()}>Sign out</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem' }}>
+          <span>Hello: {auth.user?.profile.email}</span>
+          <button onClick={() => auth.removeUser()}>Sign out</button>
+        </div>
+        <Overview apiUrl={config.apiUrl} /> {/* NEU: statt der Token-Debug-Ausgabe */}
       </div>
     );
   }

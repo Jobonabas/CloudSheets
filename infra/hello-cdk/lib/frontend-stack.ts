@@ -5,37 +5,39 @@ import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as path from 'path';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
-import { Mfa, OAuthScope, UserPool, UserPoolClient, UserPoolClientIdentityProvider} from 'aws-cdk-lib/aws-cognito'
+import { ARecord, HostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
+import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
+import { CfnWebACL } from 'aws-cdk-lib/aws-wafv2';
+import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
 import * as cr from 'aws-cdk-lib/custom-resources';
 
 export interface FrontendStackConfig {
   bucketName: string;
   environment: 'dev' | 'prod';
-}
-/*
-interface CognitoConfig {
+  domainName?: string;
+  apiUrl: string;
+  hostedZone?: HostedZone;
+  certificate?: Certificate;
+  webAcl?: CfnWebACL;
   userPoolId: string;
   userPoolClientId: string;
-  cognitoDomainUrl: string;
-  authority: string;
-  clientId: string;
-}*/
+  cognitoDomain: string;
+  existingCallbackUrls: string[];
+}
+
 
 export class FrontendStack extends Stack {
-  public readonly userPoolId: string;
-  public readonly userPoolClientId: string;
-  public readonly cognitoDomain: string;
-
   constructor(scope: Construct, id: string, config: FrontendStackConfig, props?: StackProps) {
     super(scope, id, props);
-      
+
+
     //S3 Bucket
     const bucket = new Bucket(
       this, //stack in which Bucket will be deployed
       "S3Bucket", //logical ressource name
       {
-        bucketName: "cloudsheets-frontend-bucket",
-        publicReadAccess: false, 
+        bucketName: config.bucketName,
+        publicReadAccess: false,
         blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
         versioned: true,
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete bucket when stack is removed for dev
@@ -55,14 +57,19 @@ export class FrontendStack extends Stack {
 
 
     const distribution = new cloudfront.Distribution(this, 'CloudSheetsDistribution', {
-        defaultBehavior: {
-          origin: origins.S3BucketOrigin.withOriginAccessControl(bucket, {
-      originAccessControlId: oac.attrId,  // <-- eigenen OAC injizieren
-    }),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
-        },
-        defaultRootObject: 'index.html',
-        errorResponses: [
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(bucket, {
+          originAccessControlId: oac.attrId,  // <-- eigenen OAC injizieren
+        }),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
+      },
+      defaultRootObject: 'index.html',
+      ...(config.domainName && config.certificate ? {
+        domainNames: [config.domainName],
+        certificate: config.certificate,
+      } : {}),
+      ...(config.webAcl ? { webAclId: config.webAcl.attrArn } : {}),
+      errorResponses: [
         {
           httpStatus: 403,
           responseHttpStatus: 200,
@@ -76,91 +83,76 @@ export class FrontendStack extends Stack {
       ],
     });
 
-    new CfnOutput(this, 'CloudFrontUrl', {
-        value: `https://${distribution.distributionDomainName}`});
-    
-    const baseUrl = `https://${distribution.distributionDomainName}`;
+    if (config.domainName && config.hostedZone) {
+      new ARecord(this, 'SiteAliasRecord', {
+        zone: config.hostedZone,
+        recordName: config.domainName,
+        target: RecordTarget.fromAlias(new CloudFrontTarget(distribution)),
+      });
+    }
 
-   
 
-    const userPool = new UserPool(this, 'FrontendUserPool', {
-        userPoolName: 'cloudsheets-user-pool',
-        selfSignUpEnabled: true,
-        signInAliases:{
-          email: true
+    const baseUrl = config.domainName
+      ? `https://${config.domainName}`
+      : `https://${distribution.distributionDomainName}`;
+
+
+
+    // Nach dem baseUrl-Block, VOR dem BucketDeployment:
+
+    new cr.AwsCustomResource(this, 'SyncCognitoCallbackUrl', {
+      onCreate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'updateUserPoolClient',
+        parameters: {
+          UserPoolId: config.userPoolId,
+          ClientId: config.userPoolClientId,
+          CallbackURLs: [...config.existingCallbackUrls, baseUrl],
+          LogoutURLs: [...config.existingCallbackUrls, baseUrl],
+          AllowedOAuthFlows: ['code'],
+          AllowedOAuthScopes: ['openid', 'email', 'profile'],
+          AllowedOAuthFlowsUserPoolClient: true,
+          SupportedIdentityProviders: ['COGNITO'],
         },
-        autoVerify: {email: true},
-        passwordPolicy: {
-          minLength: 12,
-          requireUppercase: true,
-          requireLowercase: true,
-          requireDigits: true,
-          requireSymbols: true,
+        physicalResourceId: cr.PhysicalResourceId.of(`${id}-cognito-callback-sync`),
+      },
+      onUpdate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'updateUserPoolClient',
+        parameters: {
+          UserPoolId: config.userPoolId,
+          ClientId: config.userPoolClientId,
+          CallbackURLs: [...config.existingCallbackUrls, baseUrl],
+          LogoutURLs: [...config.existingCallbackUrls, baseUrl],
+          AllowedOAuthFlows: ['code'],
+          AllowedOAuthScopes: ['openid', 'email', 'profile'],
+          AllowedOAuthFlowsUserPoolClient: true,
+          SupportedIdentityProviders: ['COGNITO'],
         },
-        mfa: Mfa.REQUIRED,
-        mfaSecondFactor: {
-          sms: false,
-          otp: true
-        },
-        removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN,
-      });
+        physicalResourceId: cr.PhysicalResourceId.of(`${id}-cognito-callback-sync`),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: [`arn:aws:cognito-idp:${this.region}:${this.account}:userpool/${config.userPoolId}`],
+      }),
+    });
 
-      const providerDomain = userPool.addDomain('CognitoDomain', {
-        cognitoDomain: {
-            domainPrefix: `cloudsheets-auth-${config.environment}`,
-        },
-      });
+    new s3deploy.BucketDeployment(this, 'DeployFrontend', {
+      sources: [
+        s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist')),
+        s3deploy.Source.jsonData('config.json', {
+          authority: `https://cognito-idp.${this.region}.amazonaws.com/${config.userPoolId}`,
+          clientId: config.userPoolClientId,
+          callbackUrl: baseUrl,
+          logoutUrl: baseUrl,
+          cognitoDomain: config.cognitoDomain,
+          apiUrl: config.apiUrl,
+        }),
+      ],
+      destinationBucket: bucket,
+      distribution,
+      distributionPaths: ['/*'],
+    });
 
-      
-      const userPoolClient = new UserPoolClient(this, 'FrontendUserPoolClient', {
-        userPool,
-        supportedIdentityProviders: [
-          UserPoolClientIdentityProvider.COGNITO,
-        ],
-        oAuth: {
-          flows: {
-            authorizationCodeGrant: true,
-          },
-          scopes: [OAuthScope.OPENID, OAuthScope.EMAIL, OAuthScope.PROFILE],
-          callbackUrls: [baseUrl],
-          logoutUrls: [baseUrl]
-        },
-      });
-
-      this.userPoolId = userPool.userPoolId;
-      this.userPoolClientId = userPoolClient.userPoolClientId;
-      this.cognitoDomain = providerDomain.baseUrl();
-
-      new CfnOutput(this, 'UserPoolId', {
-        value: this.userPoolId
-      });
-      
-      new CfnOutput(this, 'UserPoolClientId', {
-        value: this.userPoolClientId,
-      });
-      new CfnOutput(this, 'CognitoDomainUrl', {
-        value: this.cognitoDomain
-      });
-
-      
-       new s3deploy.BucketDeployment(this, 'DeployFrontend', {
-  sources: [
-    s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist')),
-    s3deploy.Source.jsonData('config.json', {  // ← direkt hier!
-      authority: `https://cognito-idp.${this.region}.amazonaws.com/${this.userPoolId}`,
-      clientId: this.userPoolClientId,
-      callbackUrl: baseUrl,
-      logoutUrl: baseUrl,
-      cognitoDomain: this.cognitoDomain,
-    }),
-  ],
-  destinationBucket: bucket,
-  distribution,
-  distributionPaths: ['/*'],
-});
-}
+  }
 }
 
-/*cognitoConfig, 
-        callbackUrl: baseUrl, 
-        logoutUrl: baseUrl, */
