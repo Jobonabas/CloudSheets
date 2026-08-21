@@ -1,0 +1,291 @@
+name: CI/CD Pipeline
+
+# Validation runs on every pull request; the deploy job only runs on main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+# id-token is granted per-job (deploy only), not workflow-wide.
+permissions:
+  contents: read
+
+concurrency:
+  group: cicd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  AWS_ACCOUNT_ID: "691537867581"
+  # Switch these three together when promoting the pipeline to prod:
+  #   CDK_ENVIRONMENT: prod / ECR_REPOSITORY: cloudsheets-backend / ECR_STACK: EcrStack
+  # Note: environment=prod replaces the Cognito user pool domain (cloudsheets-auth-dev -> -prod).
+  CDK_ENVIRONMENT: dev
+  ECR_REPOSITORY: cloudsheets-backend-dev
+  ECR_STACK: EcrDevStack
+  IMAGE_TAG: ${{ github.sha }}
+  NODE_VERSION: "24"
+
+jobs:
+  test-backend:
+    name: Backend build & tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: cloudsheet
+          POSTGRES_PASSWORD: cloudsheet
+          POSTGRES_DB: cloudsheet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cloudsheet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # 127.0.0.1, not localhost: Node >=17 resolves localhost to ::1 first, but the
+      # postgres service container only publishes its port on IPv4 -> ECONNREFUSED ::1:5432.
+      DATABASE_URL: postgres://cloudsheet:cloudsheet@127.0.0.1:5432/cloudsheet
+      NODE_ENV: test
+      AUTH_BYPASS: "true"
+      # verifyUser.ts builds the Cognito verifier lazily, but aws-jwt-verify still
+      # validates the pool id format as soon as a token is verified. Format-valid
+      # dummies keep the module usable without real Cognito configuration.
+      COGNITO_USER_POOL_ID: eu-central-1_Test12345
+      COGNITO_CLIENT_ID: testclientid
+      COGNITO_DOMAIN: https://example.invalid
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      # tsconfig.json sets "noEmit": true, so this is a type check, not a build.
+      - name: Type check
+        working-directory: backend
+        run: npm run build
+
+      # The suite in backend/tests is integration-style: it talks to a real server
+      # over HTTP (supertest against TEST_SERVER_URL) and a real Postgres.
+      # Migrations and seeds are run by tests/setup.ts itself.
+      - name: Start backend server
+        working-directory: backend
+        run: |
+          npx tsx src/index.ts > server.log 2>&1 &
+          echo $! > server.pid
+          npx wait-port 127.0.0.1:8080 -t 60000
+
+      - name: Run tests
+        working-directory: backend
+        run: npm run test:ci
+
+      - name: Dump server log on failure
+        if: failure()
+        working-directory: backend
+        run: cat server.log || true
+
+      - name: Stop backend server
+        if: always()
+        working-directory: backend
+        run: |
+          if [ -f server.pid ]; then kill "$(cat server.pid)" || true; fi
+
+  build-frontend:
+    name: Frontend lint & build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      # FrontendStack reads frontend/dist via s3deploy.Source.asset(), so cdk synth
+      # in the deploy job fails without this artifact.
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+          if-no-files-found: error
+
+  build-image:
+    name: Backend image build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Build without pushing so a broken container fails the pull request
+      # instead of surfacing only on a push to main.
+      - name: Build backend image
+        run: docker build --tag cloudsheets-backend:ci ./backend
+
+  test-infra:
+    name: CDK build & tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: infra/hello-cdk/package-lock.json
+
+      - name: Install dependencies
+        working-directory: infra/hello-cdk
+        run: npm ci
+
+      - name: Build
+        working-directory: infra/hello-cdk
+        run: npm run build
+
+      # Synth-only assertions, no AWS credentials required.
+      - name: Test
+        working-directory: infra/hello-cdk
+        run: npm test -- --runInBand
+
+  deploy:
+    name: Push image & deploy infrastructure
+    runs-on: ubuntu-latest
+    needs: [test-backend, build-frontend, build-image, test-infra]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      id-token: write # OIDC federation with AWS
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: infra/hello-cdk/package-lock.json
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+
+      - name: Install CDK dependencies
+        working-directory: infra/hello-cdk
+        run: npm ci
+
+      # The repository has to exist before docker push.
+      - name: Ensure ECR repository exists
+        working-directory: infra/hello-cdk
+        run: npx cdk deploy "$ECR_STACK" --context environment="$CDK_ENVIRONMENT" --require-approval never
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build \
+            --tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            --tag "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
+            ./backend
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+
+      # Deploys BackendStack (RDS), FrontendStack (S3/CloudFront/Cognito), both ECR
+      # stacks and EcsExpressStack. Cross-stack references determine the order.
+      - name: Deploy infrastructure
+        working-directory: infra/hello-cdk
+        run: |
+          npx cdk deploy --all \
+            --context environment="$CDK_ENVIRONMENT" \
+            --context backendImageTag="$IMAGE_TAG" \
+            --require-approval never \
+            --outputs-file cdk-outputs.json
+
+      - name: Resolve service endpoint
+        id: endpoint
+        working-directory: infra/hello-cdk
+        run: |
+          ENDPOINT=$(node -e "const o=require('./cdk-outputs.json');process.stdout.write((o.EcsExpressStack&&o.EcsExpressStack.EcsExpressEndpoint)||'')")
+          if [ -z "$ENDPOINT" ]; then
+            echo "EcsExpressEndpoint missing from cdk-outputs.json" >&2
+            exit 1
+          fi
+          case "$ENDPOINT" in
+            http://*|https://*) ;;
+            *) ENDPOINT="https://$ENDPOINT" ;;
+          esac
+          echo "url=${ENDPOINT%/}" >> "$GITHUB_OUTPUT"
+
+      # A green cdk deploy only means CloudFormation succeeded, not that the
+      # container actually serves traffic. Probe /health before declaring success.
+      - name: Smoke test /health
+        run: |
+          URL="${{ steps.endpoint.outputs.url }}/health"
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 10 "$URL"; then
+              echo "Health check passed on attempt $i"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+          echo "Health check never succeeded at $URL" >&2
+          exit 1
+
+      # cdk.out is deliberately NOT uploaded as an artifact: ecs-express-stack.ts
+      # resolves the RDS secret into the template via unsafeUnwrap().
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### Deployment"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Environment | \`$CDK_ENVIRONMENT\` |"
+            echo "| ECR repository | \`$ECR_REPOSITORY\` |"
+            echo "| Image tag | \`$IMAGE_TAG\` |"
+            echo "| Endpoint | ${{ steps.endpoint.outputs.url }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -55,12 +55,30 @@ const domainStack = new DomainStack(app, `DomainStack-${environment}`, {
   crossRegionReferences: true,
 });
 
+
+  // Backend container image.
+// The repository name is derived from `environment` so the CI pipeline and the
+// ECS service can never point at different ECR repositories. Keep the names in
+// sync with the EcrDevStack / EcrStack definitions below.
+const backendRepositoryName =
+  environment === 'prod' ? 'cloudsheets-backend' : 'cloudsheets-backend-dev';
+
+// The pipeline passes the commit SHA via `-c backendImageTag=<sha>`.
+// `latest` is the fallback for manual deploys without context.
+const backendImageTag = app.node.tryGetContext('backendImageTag') ?? 'latest';
+const backendImageUri =
+  app.node.tryGetContext('backendImageUri') ??
+  `${env.account}.dkr.ecr.${env.region}.amazonaws.com/${backendRepositoryName}:${backendImageTag}`;
+
+
+
 const backendStack = new BackendStack(app, `BackendStack-${environment}`,
   config
   , {
     env: { account: '691537867581', region: 'eu-central-1' },
   });
-// ECS Express Mode Hello World stack (replaces deprecated App Runner)
+
+// ECS Express Mode backend service (replaces deprecated App Runner)
 const ecsExpressStack = new EcsExpressStack(app, `EcsExpressStack-${environment}`, {
   environment,
   //Cross Stack References:
@@ -68,12 +86,12 @@ const ecsExpressStack = new EcsExpressStack(app, `EcsExpressStack-${environment}
   cognitoClientId: authStack.userPoolClientId,
   cognitoDomain: authStack.cognitoDomain,
   // Config:
+  imageUri: backendImageUri,
   database: backendStack.postgresDB,
   vpc: backendStack.vpc,
   backendSecurityGroup: backendStack.backendSG,
-}, {
+  }, {
   env,
-  crossRegionReferences: true
 });
 
 const frontendStack = new FrontendStack(app, `FrontendStack-${environment}`, {
@@ -121,3 +139,4 @@ new ApiStack(app, `ApiStack-${environment}`, {
   env: usEast1Env,
   crossRegionReferences: true,
 });
+
