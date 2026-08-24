@@ -1,6 +1,6 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { Template } from 'aws-cdk-lib/assertions';
-import { BackendStack } from '../lib/backend-stack';
+import { BackendStack, DATABASE_NAME } from '../lib/backend-stack';
 
 function templateFor(environment: 'dev' | 'prod'): Template {
   const app = new cdk.App();
@@ -21,6 +21,15 @@ describe('BackendStack', () => {
     template.resourceCountIs('AWS::SecretsManager::Secret', 1);
     template.hasResourceProperties('AWS::RDS::DBInstance', {
       Engine: 'postgres',
+    });
+  });
+
+  test('creates the application database on the instance', () => {
+    // Without DBName, RDS only ever has the engine default 'postgres' database and
+    // `knex migrate:latest` dies with 'database "cloudsheet" does not exist',
+    // which takes the whole container down via the && in the Dockerfile CMD.
+    template.hasResourceProperties('AWS::RDS::DBInstance', {
+      DBName: DATABASE_NAME,
     });
   });
 

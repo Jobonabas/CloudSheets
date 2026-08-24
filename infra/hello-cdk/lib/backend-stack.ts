@@ -6,6 +6,17 @@ import { SecurityGroup, Peer, Port, InstanceClass, InstanceSize} from 'aws-cdk-l
 import { DbCredentialsToSsm } from './db-credentials-parameter';
 
 
+/**
+ * Name of the application database inside the RDS instance.
+ *
+ * Single source of truth on purpose: it has to be handed to RDS as `databaseName`
+ * (otherwise the engine only ever has its default `postgres` database) *and* to the
+ * container as DB_NAME. When those two drifted apart, `knex migrate:latest` failed
+ * with 'database "cloudsheet" does not exist' and the container never started.
+ */
+export const DATABASE_NAME = 'cloudsheet';
+
+
 export interface BackendStackConfig {
   environment: 'dev' | 'prod';
   /** Bump to force a re-sync of the credentials into Parameter Store. */
@@ -45,6 +56,7 @@ export interface BackendStackConfig {
       //RDS PostgreSQL Instance (db.t3.micro)
       this.postgresDB = new DatabaseInstance(this, 'PostgresDB', { 
         engine: DatabaseInstanceEngine.postgres({version: PostgresEngineVersion.VER_18_2}),
+        databaseName: DATABASE_NAME, //without this RDS only creates the engine default 'postgres'
         instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
         vpc: this.vpc,
         securityGroups: [dbSG],

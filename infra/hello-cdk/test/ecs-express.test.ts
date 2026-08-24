@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { Template } from 'aws-cdk-lib/assertions';
 import { EcsExpressStack } from '../lib/ecs-express-stack';
-import { BackendStack } from '../lib/backend-stack';
+import { BackendStack, DATABASE_NAME } from '../lib/backend-stack';
 
 const TEST_IMAGE_URI =
   '123456789012.dkr.ecr.eu-central-1.amazonaws.com/cloudsheets-backend-dev:testsha';
@@ -60,7 +60,9 @@ describe('EcsExpressStack', () => {
     // Non-sensitive connection details travel as ordinary environment variables.
     expect(byName('DB_HOST')).toBeDefined();
     expect(byName('DB_PORT')).toBeDefined();
-    expect(byName('DB_NAME')?.Value).toBe('cloudsheet');
+    // Must match the DBName RDS is created with, or migrations hit a database
+    // that does not exist. Asserted against the shared constant, not a literal.
+    expect(byName('DB_NAME')?.Value).toBe(DATABASE_NAME);
   });
 
   test('never places database credentials in plain environment variables', () => {

@@ -5,6 +5,7 @@ import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
 import { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
 import { Vpc, ISecurityGroup, ISubnet } from 'aws-cdk-lib/aws-ec2';
 import { DbCredentialsToSsm, dbParameterArn } from './db-credentials-parameter';
+import { DATABASE_NAME } from './backend-stack';
 
 export interface EcsExpressStackConfig {
   environment: "dev" | "prod";
@@ -55,7 +56,8 @@ export class EcsExpressStack extends Stack {
     // anyone with ecs:DescribeServices could read it.
     const dbHost = config.database.dbInstanceEndpointAddress;
     const dbPort = config.database.dbInstanceEndpointPort;
-    const dbName = 'cloudsheet';
+    // Same constant RDS is created with -- see DATABASE_NAME in backend-stack.ts.
+    const dbName = DATABASE_NAME;
 
     // The ECS *execution* role fetches secrets before the container starts, so the
     // grant belongs there rather than on the infrastructure role.
