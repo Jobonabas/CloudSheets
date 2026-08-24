@@ -79,9 +79,19 @@ jobs:
         working-directory: backend
         run: npm run build
 
+      # knex loads migration files with a dynamic import(). Run through tsx that
+      # resolves .ts fine, but vitest treats knex as an external dependency, so the
+      # same import goes straight to Node's ESM loader, which rejects .ts with
+      # 'Unknown file extension'. The postgres service starts empty, so every
+      # migration would be pending and tests/setup.ts would hit exactly that.
+      # Applying them here first leaves nothing pending for setup.ts to import.
+      - name: Run migrations
+        working-directory: backend
+        run: npm run migrate:latest
+
       # The suite in backend/tests is integration-style: it talks to a real server
       # over HTTP (supertest against TEST_SERVER_URL) and a real Postgres.
-      # Migrations and seeds are run by tests/setup.ts itself.
+      # Seeds are still applied by tests/setup.ts itself.
       - name: Start backend server
         working-directory: backend
         run: |
