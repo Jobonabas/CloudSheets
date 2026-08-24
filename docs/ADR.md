@@ -114,3 +114,39 @@ ci(github): add deploy workflow for main branch #9
   - The parameters are created outside CloudFormation, so the custom resource deletes them on stack
     deletion in `dev` only. In `prod` they are retained, matching the RDS `RemovalPolicy.RETAIN` —
     deleting them would leave a retained database with no stored credentials.
+## ADR 8: One Environment Switch for the Deployment Pipeline
+- **Status:** Accepted (Issue #54)
+- **Context:** `.github/workflows/deploy.yml` defined `CDK_ENVIRONMENT`, `ECR_REPOSITORY` and
+  `ECR_STACK` as three independent literals, with a comment asking the next person to change all
+  three together. Changing one and forgetting the others deploys dev infrastructure while pushing to
+  — and pulling from — the prod registry, and nothing in the pipeline notices. The CDK app made the
+  same class of mistake possible from the other side: `appConfig[environment]` returned `undefined`
+  for a typo, so `-c environment=prd` synthesized a config without an `environment` field, silently
+  taking the prod branch of every `=== 'dev'` check.
+- **Decision:**
+  - Keep **one** switch, `CDK_ENVIRONMENT`, and derive everything else from it.
+  - Put the mapping in `infra/hello-cdk/lib/environments.json` rather than in TypeScript, because
+    the workflow has to read it too. A TS-only table would have forced the pipeline to keep its own
+    copy — exactly the duplication this removes. `lib/environment.ts` imports it for the CDK app,
+    `.github/scripts/resolve-environment.mjs` reads it for the workflow.
+  - Treat `ECR_STACK` / `ECR_REPOSITORY` in the workflow environment as **assertions, not
+    overrides**: if either is set and disagrees with the mapping, the run fails.
+  - Instantiate only the stacks of the selected environment in `bin/hello-cdk.ts`. Previously both
+    ECR stacks were always in the app, so `cdk deploy --all -c environment=dev` created the prod
+    registry as a side effect.
+  - Reject an unknown `-c environment=` value with an explicit error instead of synthesizing.
+  - Give `prod` its own stack names and its own physical names (`-prod` suffix); leave `dev`
+    unsuffixed.
+- **Consequences:**
+  - The three variables can no longer drift apart, and a dev deploy touches no prod resource.
+  - **The naming is asymmetric.** `dev` is unsuffixed because its stacks are already deployed under
+    those names — renaming them would not move the resources, CloudFormation would create a second
+    set and orphan the RDS instance, the bucket and the distribution. The ECR stacks keep their
+    historical `EcrDevStack` / `EcrStack` names for the same reason, which inverts the convention
+    (there the *prod* name is the plain one).
+  - A prod deploy now creates a **second** set of infrastructure rather than overwriting dev,
+    including a second RDS instance and a second pair of NAT gateways. That is the point, but it is
+    not free — see `docs/deployment.md`.
+  - CI synthesizes both environments on every pull request (`synth-environments` matrix), so a prod
+    regression surfaces while the pipeline still targets dev. This costs one extra job that has to
+    wait for the frontend build, because `FrontendStack` reads `frontend/dist` at synth time.
