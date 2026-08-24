@@ -20,4 +20,9 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Migrations are serialized across tasks by knex's knex_migrations_lock table.
-CMD ["sh", "-c", "npx knex migrate:latest && npx tsx src/index.ts"]
+# The knex CLI is invoked through tsx rather than directly: package.json sets
+# "type": "module", so Node's ESM loader cannot read knexfile.ts and the CLI dies
+# with 'Unknown file extension ".ts"'. The `import "ts-node/register"` inside the
+# knexfile cannot help -- it is a CommonJS hook living in the very file that fails
+# to load. tsx hooks the loader from outside, before the knexfile is reached.
+CMD ["sh", "-c", "npx tsx node_modules/knex/bin/cli.js migrate:latest && npx tsx src/index.ts"]

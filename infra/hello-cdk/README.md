@@ -154,7 +154,49 @@ docker pull 691537867581.dkr.ecr.eu-central-1.amazonaws.com/cloudsheets-backend:
 - Make sure your AWS credentials are configured (e.g., via `aws configure` / `aws login`).
 - The `FrontendDevStack` and `FrontendStack` deploy S3 buckets with different names for dev and prod. The deployment uploads the frontend build from `frontend/dist` to the respective S3 bucket.
 - The `BackendDevStack` and `BackendStack` deploy an RDS PostgreSQL database (`db.t3.micro` instance) in a VPC. Security groups are configured so only backend resources can access the database. dev stack uses removal policy DESTROY (database is deleted with the stack). prod stack uses removal policy RETAIN (database is preserved if the stack is deleted).
-- Database connection details (endpoint, credentials) should be securely passed to backend services (e.g., via AWS SSM Parameter Store or Secrets Manager).
+- Database connection details reach the backend two different ways. The non-secret parts (`DB_HOST`, `DB_PORT`, `DB_NAME`) are ordinary container environment variables. The credentials are **not**: see *Database credentials* below.
+
+---
+
+### Database credentials
+
+`BackendStack` copies the RDS-generated credentials into SSM Parameter Store, and `EcsExpressStack`
+injects them into the container with ECS-native secret injection, resolved by the ECS agent once at
+task start.
+
+| Parameter | Type | Injected as |
+| --- | --- | --- |
+| `/cloudsheets/{dev\|prod}/db/username` | `String` | `DB_USERNAME` |
+| `/cloudsheets/{dev\|prod}/db/password` | `SecureString` | `DB_PASSWORD` |
+
+- **Why a custom resource?** CloudFormation cannot create `SecureString` parameters —
+  `AWS::SSM::Parameter` supports only `String` and `StringList`. A Lambda-backed custom resource
+  (`lib/db-credentials-parameter.ts`) receives only the secret **ARN**, reads the value itself and
+  calls `ssm:PutParameter`, so no plaintext credential ever enters the CloudFormation template.
+- **IAM:** the ECS *execution* role (not the task or infrastructure role) is granted
+  `ssm:GetParameter` / `ssm:GetParameters` on exactly those two ARNs. The ECS agent fetches secrets
+  before the container starts. No `kms:Decrypt` grant is needed — the parameters use the AWS-managed
+  `alias/aws/ssm` key.
+- **Secrets Manager is still RDS's source of truth.** Parameter Store is the delivery mechanism to
+  the backend, not a replacement store, so the credentials exist in both.
+- **Rotation is not synchronised.** The custom resource only re-runs when its properties change. If
+  the password is rotated out-of-band, the SSM copy goes stale and tasks will fail to connect. Force
+  a re-sync with:
+  ```sh
+  npx cdk deploy BackendStack --context environment=dev --context dbSyncVersion=2
+  ```
+- **Deletion:** in `dev` the parameters are deleted with the stack. In `prod` they are retained,
+  matching the RDS `RemovalPolicy.RETAIN` — deleting them would leave a retained database with no
+  stored credentials.
+- **Local development is unaffected.** `backend/src/config/database.ts` prefers `DATABASE_URL` when
+  it is set (docker-compose, `.env`, CI) and only falls back to the discrete `DB_*` variables, which
+  is the path taken on ECS.
+
+Verify after a deploy:
+```sh
+aws ssm get-parameters-by-path --path /cloudsheets/dev/db --recursive
+```
+The password is returned masked unless `--with-decryption` is passed.
 - ECR repositories are private by default. Only IAM principals with the correct permissions can push or pull.
 - `EcrDevStack` auto-deletes the repository and all images on `cdk destroy`. `EcrStack` (prod) retains the repository.
 - A lifecycle policy keeps the last 10 tagged images and removes untagged images after 7 days.

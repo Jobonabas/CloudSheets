@@ -43,8 +43,13 @@ const backendImageUri =
   app.node.tryGetContext('backendImageUri') ??
   `${env.account}.dkr.ecr.${env.region}.amazonaws.com/${backendRepositoryName}:${backendImageTag}`;
 
-const backendStack = new BackendStack(app, 'BackendStack', 
-  config
+// The custom resource that copies the DB credentials into Parameter Store only re-runs
+// when its properties change. Bump this (`-c dbSyncVersion=2`) to force a re-sync after
+// an out-of-band password rotation in Secrets Manager.
+const dbSyncVersion = app.node.tryGetContext('dbSyncVersion') ?? '1';
+
+const backendStack = new BackendStack(app, 'BackendStack',
+  { ...config, dbSyncVersion }
  , {
   env: { account: '691537867581', region: 'eu-central-1' },
 });
@@ -82,6 +87,7 @@ new EcsExpressStack(app, 'EcsExpressStack', {
   // Config:
   imageUri: backendImageUri,
   database: backendStack.postgresDB,
+  dbCredentials: backendStack.dbCredentials,
   vpc: backendStack.vpc,
   backendSecurityGroup: backendStack.backendSG,
 }, {
