@@ -1,10 +1,12 @@
 import { Stack, StackProps, RemovalPolicy, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Repository, TagMutability, TagStatus } from 'aws-cdk-lib/aws-ecr';
+import { EnvironmentName } from './environment';
 
 interface EcrStackConfig {
+  /** Repository name for this environment -- see lib/environments.json. */
   repositoryName: string;
-  environment: 'dev' | 'prod';
+  environment: EnvironmentName;
 }
 
 export class EcrStack extends Stack {

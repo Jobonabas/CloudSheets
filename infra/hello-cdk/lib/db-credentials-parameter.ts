@@ -4,6 +4,7 @@ import { Code, Function as LambdaFunction, Runtime } from 'aws-cdk-lib/aws-lambd
 import { Effect, IGrantable, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { ISecret } from 'aws-cdk-lib/aws-secretsmanager';
 import { Provider } from 'aws-cdk-lib/custom-resources';
+import { EnvironmentName } from './environment';
 
 /**
  * The SSM Parameter Store names holding the database credentials, derived from the
@@ -12,7 +13,7 @@ import { Provider } from 'aws-cdk-lib/custom-resources';
  * Exported so BackendStack (which writes them) and EcsExpressStack (which reads them)
  * share one definition of the naming convention.
  */
-export function dbParameterNames(environment: 'dev' | 'prod') {
+export function dbParameterNames(environment: EnvironmentName) {
   const prefix = `/cloudsheets/${environment}/db`;
   return {
     username: `${prefix}/username`,
@@ -44,7 +45,7 @@ export interface DbCredentialsToSsmProps {
   /** The RDS-managed Secrets Manager secret to copy from. */
   secret: ISecret;
   /** Controls delete behaviour -- see the note on `retainOnDelete` below. */
-  environment: 'dev' | 'prod';
+  environment: EnvironmentName;
   /**
    * Bump to force a re-sync. The custom resource only runs when its properties
    * change, so an out-of-band password rotation in Secrets Manager would otherwise
