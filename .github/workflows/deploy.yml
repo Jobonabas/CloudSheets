@@ -1,9 +1,9 @@
 name: CI/CD Pipeline
 
-# Validation runs on every pull request; the deploy job only runs on main.
+# Validation runs on every pull request; the deploy job runs on develop and main.
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
   pull_request:
     branches: [develop, main]
   workflow_dispatch:
@@ -19,16 +19,52 @@ concurrency:
 env:
   AWS_REGION: eu-central-1
   AWS_ACCOUNT_ID: "691537867581"
-  # Switch these three together when promoting the pipeline to prod:
-  #   CDK_ENVIRONMENT: prod / ECR_REPOSITORY: cloudsheets-backend / ECR_STACK: EcrStack
-  # Note: environment=prod replaces the Cognito user pool domain (cloudsheets-auth-dev -> -prod).
+  # The only switch for choosing a target environment. The ECR repository, the ECR
+  # stack and every CDK stack name are *derived* from it by the `environment` job
+  # below -- do not add ECR_REPOSITORY or ECR_STACK back here, the job rejects them
+  # (issue #54). Promoting to prod is one line: see docs/deployment.md.
   CDK_ENVIRONMENT: dev
-  ECR_REPOSITORY: cloudsheets-backend-dev
-  ECR_STACK: EcrDevStack
   IMAGE_TAG: ${{ github.sha }}
   NODE_VERSION: "24"
 
 jobs:
+  environment:
+    name: Resolve target environment
+    runs-on: ubuntu-latest
+
+    outputs:
+      name: ${{ steps.resolve.outputs.name }}
+      ecr_stack: ${{ steps.resolve.outputs.ecr_stack }}
+      ecr_repository: ${{ steps.resolve.outputs.ecr_repository }}
+      stacks: ${{ steps.resolve.outputs.stacks }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # infra/hello-cdk/lib/environments.json is the same file bin/hello-cdk.ts reads,
+      # so the pipeline and the CDK app cannot disagree about which repository belongs
+      # to which environment. An unknown CDK_ENVIRONMENT fails here, before anything
+      # is built, instead of 15 minutes later in cdk deploy.
+      - name: Derive ECR stack and repository
+        id: resolve
+        run: |
+          node .github/scripts/resolve-environment.mjs \
+            infra/hello-cdk/lib/environments.json \
+            "$CDK_ENVIRONMENT" >> "$GITHUB_OUTPUT"
+
+      - name: Report the selected environment
+        run: |
+          echo "::notice title=Target environment::${{ steps.resolve.outputs.name }} -> ${{ steps.resolve.outputs.ecr_stack }} / ${{ steps.resolve.outputs.ecr_repository }}"
+          {
+            echo "### Target environment: \`${{ steps.resolve.outputs.name }}\`"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| ECR stack | \`${{ steps.resolve.outputs.ecr_stack }}\` |"
+            echo "| ECR repository | \`${{ steps.resolve.outputs.ecr_repository }}\` |"
+            echo "| CDK stacks | \`${{ steps.resolve.outputs.stacks }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   test-backend:
     name: Backend build & tests
     runs-on: ubuntu-latest
@@ -182,20 +218,25 @@ jobs:
         working-directory: infra/hello-cdk
         run: npm run build
 
-      # Synth-only assertions, no AWS credentials required.
+      # Synth-only assertions, no AWS credentials required. test/environment.test.ts
+      # covers the dev and prod mapping and fails if this workflow starts hardcoding
+      # repository names again.
       - name: Test
         working-directory: infra/hello-cdk
         run: npm test -- --runInBand
 
-  deploy:
-    name: Push image & deploy infrastructure
+  synth-environments:
+    name: CDK synth (${{ matrix.environment }})
     runs-on: ubuntu-latest
-    needs: [test-backend, build-frontend, build-image, test-infra]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # FrontendStack pulls frontend/dist through s3deploy.Source.asset(), so the app
+    # cannot be synthesized before the frontend is built.
+    needs: [build-frontend]
 
-    permissions:
-      contents: read
-      id-token: write # OIDC federation with AWS
+    strategy:
+      # Both environments are reported even when one of them breaks.
+      fail-fast: false
+      matrix:
+        environment: [dev, prod]
 
     steps:
       - uses: actions/checkout@v7
@@ -205,6 +246,68 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: infra/hello-cdk/package-lock.json
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Install dependencies
+        working-directory: infra/hello-cdk
+        run: npm ci
+
+      - name: Synthesize
+        working-directory: infra/hello-cdk
+        run: npx cdk synth --all -c environment=${{ matrix.environment }} -o cdk.out --quiet
+
+      # Deriving the names makes them consistent on paper; this checks the templates
+      # CloudFormation would actually receive -- the repository the image is pushed
+      # to, the repository the ECS service pulls from, the frontend bucket, and the
+      # absence of any stack belonging to the other environment.
+      - name: Assert the app contains only ${{ matrix.environment }} infrastructure
+        run: |
+          node .github/scripts/assert-environment-synth.mjs \
+            infra/hello-cdk/lib/environments.json \
+            "${{ matrix.environment }}" \
+            infra/hello-cdk/cdk.out
+
+  deploy:
+    name: Push image & deploy infrastructure
+    runs-on: ubuntu-latest
+    needs: [environment, test-backend, build-frontend, build-image, test-infra, synth-environments]
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+
+    permissions:
+      contents: read
+      id-token: write # OIDC federation with AWS
+
+    env:
+      # Derived once in the `environment` job, never typed here. Changing
+      # CDK_ENVIRONMENT at the top of this file moves all of them together.
+      CDK_ENVIRONMENT: ${{ needs.environment.outputs.name }}
+      ECR_STACK: ${{ needs.environment.outputs.ecr_stack }}
+      ECR_REPOSITORY: ${{ needs.environment.outputs.ecr_repository }}
+      CDK_STACKS: ${{ needs.environment.outputs.stacks }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: infra/hello-cdk/package-lock.json
+
+      - name: Announce the deployment target
+        run: |
+          echo "::notice title=Deploying::environment=$CDK_ENVIRONMENT repository=$ECR_REPOSITORY stacks=$CDK_STACKS tag=$IMAGE_TAG"
+          echo "Deploying environment '$CDK_ENVIRONMENT' from ${GITHUB_REF#refs/heads/}"
+          echo "  ECR stack:      $ECR_STACK"
+          echo "  ECR repository: $ECR_REPOSITORY"
+          echo "  CDK stacks:     $CDK_STACKS"
 
       - name: Download frontend build
         uses: actions/download-artifact@v8
@@ -222,7 +325,9 @@ jobs:
         working-directory: infra/hello-cdk
         run: npm ci
 
-      # The repository has to exist before docker push.
+      # The repository has to exist before docker push. Only the ECR stack of the
+      # selected environment is part of the synthesized app, so a mismatched pair
+      # fails here with "no stack found" instead of creating the wrong registry.
       - name: Ensure ECR repository exists
         working-directory: infra/hello-cdk
         run: npx cdk deploy "$ECR_STACK" --context environment="$CDK_ENVIRONMENT" --require-approval never
@@ -235,6 +340,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
+          echo "Pushing to $ECR_REGISTRY/$ECR_REPOSITORY ($CDK_ENVIRONMENT)"
           docker build \
             --tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
             --tag "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
@@ -242,8 +348,10 @@ jobs:
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
-      # Deploys BackendStack (RDS), FrontendStack (S3/CloudFront/Cognito), both ECR
-      # stacks and EcsExpressStack. Cross-stack references determine the order.
+      # Deploys BackendStack (RDS), FrontendStack (S3/CloudFront/Cognito), the ECR
+      # stack of this environment and EcsExpressStack -- and nothing belonging to the
+      # other environment, since bin/hello-cdk.ts only instantiates one set.
+      # Cross-stack references determine the order.
       - name: Deploy infrastructure
         working-directory: infra/hello-cdk
         run: |
@@ -257,9 +365,13 @@ jobs:
         id: endpoint
         working-directory: infra/hello-cdk
         run: |
-          ENDPOINT=$(node -e "const o=require('./cdk-outputs.json');process.stdout.write((o.EcsExpressStack&&o.EcsExpressStack.EcsExpressEndpoint)||'')")
+          # cdk-outputs.json is keyed by stack name, and that name carries the
+          # environment. Picked out of the resolved list rather than rebuilt here,
+          # so the suffix stays in exactly one place (issue #54).
+          ECS_STACK=$(printf '%s\n' $CDK_STACKS | grep '^EcsExpressStack' | head -1)
+          ENDPOINT=$(ECS_STACK="$ECS_STACK" node -e "const o=require('./cdk-outputs.json');const s=o[process.env.ECS_STACK];process.stdout.write((s&&s.EcsExpressEndpoint)||'')")
           if [ -z "$ENDPOINT" ]; then
-            echo "EcsExpressEndpoint missing from cdk-outputs.json" >&2
+            echo "EcsExpressEndpoint missing from cdk-outputs.json for stack $ECS_STACK" >&2
             exit 1
           fi
           case "$ENDPOINT" in
@@ -298,7 +410,10 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Environment | \`$CDK_ENVIRONMENT\` |"
+            echo "| Branch | \`${GITHUB_REF#refs/heads/}\` |"
+            echo "| ECR stack | \`$ECR_STACK\` |"
             echo "| ECR repository | \`$ECR_REPOSITORY\` |"
+            echo "| CDK stacks | \`$CDK_STACKS\` |"
             echo "| Image tag | \`$IMAGE_TAG\` |"
             echo "| Endpoint | ${{ steps.endpoint.outputs.url }} |"
           } >> "$GITHUB_STEP_SUMMARY"
