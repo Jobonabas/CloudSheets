@@ -20,15 +20,15 @@ env:
   AWS_REGION: eu-central-1
   AWS_ACCOUNT_ID: "691537867581"
   # The only switch for choosing a target environment. The ECR repository, the ECR
-  # stack and every CDK stack name are *derived* from it by the `environment` job
-  # below -- do not add ECR_REPOSITORY or ECR_STACK back here, the job rejects them
+  # stack and every CDK stack name are *derived* from it by the `resolve-environment`
+  # job below -- do not add ECR_REPOSITORY or ECR_STACK back here, it rejects them
   # (issue #54). Promoting to prod is one line: see docs/deployment.md.
   CDK_ENVIRONMENT: dev
   IMAGE_TAG: ${{ github.sha }}
   NODE_VERSION: "24"
 
 jobs:
-  environment:
+  resolve-environment:
     name: Resolve target environment
     runs-on: ubuntu-latest
 
@@ -275,22 +275,32 @@ jobs:
   deploy:
     name: Push image & deploy infrastructure
     runs-on: ubuntu-latest
-    needs: [environment, test-backend, build-frontend, build-image, test-infra, synth-environments]
+    needs: [resolve-environment, test-backend, build-frontend, build-image, test-infra, synth-environments]
     if: >-
       github.event_name != 'pull_request' &&
       (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+
+    # Binds the run to the GitHub environment of the same name. Its protection rules
+    # apply before the first step: with required reviewers configured, the job waits
+    # for an approval instead of deploying on merge. The name is derived like
+    # everything else, so `CDK_ENVIRONMENT: prod` also switches to the prod reviewers
+    # and the prod environment secrets (issue #54).
+    environment:
+      name: ${{ needs.resolve-environment.outputs.name }}
+      # Makes the deployed endpoint clickable in the repository's Environments tab.
+      url: ${{ steps.endpoint.outputs.url }}
 
     permissions:
       contents: read
       id-token: write # OIDC federation with AWS
 
     env:
-      # Derived once in the `environment` job, never typed here. Changing
+      # Derived once in the `resolve-environment` job, never typed here. Changing
       # CDK_ENVIRONMENT at the top of this file moves all of them together.
-      CDK_ENVIRONMENT: ${{ needs.environment.outputs.name }}
-      ECR_STACK: ${{ needs.environment.outputs.ecr_stack }}
-      ECR_REPOSITORY: ${{ needs.environment.outputs.ecr_repository }}
-      CDK_STACKS: ${{ needs.environment.outputs.stacks }}
+      CDK_ENVIRONMENT: ${{ needs.resolve-environment.outputs.name }}
+      ECR_STACK: ${{ needs.resolve-environment.outputs.ecr_stack }}
+      ECR_REPOSITORY: ${{ needs.resolve-environment.outputs.ecr_repository }}
+      CDK_STACKS: ${{ needs.resolve-environment.outputs.stacks }}
 
     steps:
       - uses: actions/checkout@v7

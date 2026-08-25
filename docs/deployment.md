@@ -49,8 +49,8 @@ that value — they are never configured separately. The mapping lives in
     CDK_ENVIRONMENT: prod
     ```
 
-    Do not add `ECR_REPOSITORY` or `ECR_STACK` next to it. The `environment` job fails
-    the run if either is set to anything other than the derived value.
+    Do not add `ECR_REPOSITORY` or `ECR_STACK` next to it. The `resolve-environment`
+    job fails the run if either is set to anything other than the derived value.
 
 2. **Open a pull request against `develop`.** The pull request already runs
    `CDK synth (prod)`, which synthesizes the full prod app and asserts that it
@@ -67,8 +67,11 @@ that value — they are never configured separately. The mapping lives in
     is still shared between the two environments and prod would take dev's resource
     over.
 
-4. **Merge.** A push to `develop` or `main` runs the deploy job; the target
-   environment is printed as a run annotation and in the job summary.
+4. **Merge, then approve.** A push to `develop` or `main` runs everything up to the
+   deploy job, which then waits for an approval on the `prod` GitHub environment —
+   the reviewers configured there are the ones who can release it. The target
+   environment is printed as a run annotation and in the job summary before the
+   wait, so the approver can see what they are approving.
 
 5. **Verify in AWS** — the parameters carry the environment in their path:
 
@@ -98,7 +101,7 @@ Four independent guards, in the order they fire:
 
 | Guard | Where | Catches |
 | --- | --- | --- |
-| `resolve-environment.mjs` | `environment` job | an unknown `CDK_ENVIRONMENT`, or a re-introduced `ECR_STACK` / `ECR_REPOSITORY` that disagrees with the mapping |
+| `resolve-environment.mjs` | `resolve-environment` job | an unknown `CDK_ENVIRONMENT`, or a re-introduced `ECR_STACK` / `ECR_REPOSITORY` that disagrees with the mapping |
 | `test/environment.test.ts` | `test-infra` job | the mapping changing by accident, and the workflow starting to hardcode names again |
 | `assert-environment-synth.mjs` | `synth-environments` job (dev **and** prod) | a synthesized app that contains a stack, a repository or a bucket of the other environment |
 | `resolveEnvironment()` | every `cdk` invocation | `-c environment=<typo>`, which used to synthesize a half-configured app instead of failing |
@@ -108,14 +111,38 @@ environment. `cdk deploy --all -c environment=dev` therefore *cannot* create the
 registry, and `cdk deploy EcrStack -c environment=dev` fails with "no stack found"
 rather than pushing dev images into the prod registry.
 
+## Approval before a deploy
+
+The deploy job is bound to a GitHub environment of the same name:
+
+```yaml
+environment:
+  name: ${{ needs.resolve-environment.outputs.name }}
+  url: ${{ steps.endpoint.outputs.url }}
+```
+
+The environment's protection rules apply *before* the job's first step. With
+**required reviewers** configured under Settings → Environments → `dev` / `prod`, a
+merge does not deploy on its own: the run stops at "Review deployments" and waits for
+someone to release it. Unapproved runs expire after 30 days, and who approved what is
+kept in the run history.
+
+Because the name is derived from `CDK_ENVIRONMENT` like everything else, switching to
+`prod` also switches to the prod reviewers — and to the prod environment secrets, if
+`AWS_GITHUB_ACTIONS_ROLE_ARN` is stored per environment rather than repository-wide.
+
+!!! warning "An environment without reviewers is only a label"
+    Creating the environment is not the gate. Without at least one required reviewer,
+    the job runs straight through and the merge deploys immediately.
+
 ## Which branches deploy
 
 | Event | Runs | Deploys |
 | --- | --- | --- |
 | Pull request to `develop` or `main` | all checks | no |
-| Push to `develop` | all checks | yes |
-| Push to `main` | all checks | yes |
-| `workflow_dispatch` | all checks | only on `develop` / `main` |
+| Push to `develop` | all checks | after approval |
+| Push to `main` | all checks | after approval |
+| `workflow_dispatch` | all checks | only on `develop` / `main`, after approval |
 
 Pushes to a feature branch trigger nothing — open a pull request to get CI.
 
