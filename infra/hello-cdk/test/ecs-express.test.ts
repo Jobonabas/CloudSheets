@@ -183,4 +183,21 @@ describe('EcsExpressStack', () => {
       Description: 'ECS Express Service ARN',
     });
   });
+
+  test('places the gateway in public subnets so it is reachable from outside the VPC', () => {
+    // AWS::ECS::ExpressGatewayService has no `scheme` / `internetFacing` property --
+    // the subnets alone decide. Handing it the private subnets produced an *internal*
+    // ALB: the endpoint resolved to 10.0.245.77 / 10.0.172.123 and the pipeline's
+    // /health smoke test timed out through all 20 attempts, while the service itself
+    // reported a healthy task and a registered target the whole time.
+    const services = template.findResources('AWS::ECS::ExpressGatewayService');
+    const service = Object.values(services)[0] as any;
+    const subnets: Array<{ 'Fn::ImportValue': string }> =
+      service.Properties.NetworkConfiguration.Subnets;
+
+    expect(subnets).toHaveLength(2);
+    for (const subnet of subnets) {
+      expect(subnet['Fn::ImportValue']).toContain('PublicSubnet');
+    }
+  });
 });
