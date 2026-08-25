@@ -65,5 +65,6 @@ nav:
   - Architecture: architecture.md
   - Tech Stack: tech-stack.md
   - Requirements: requirements.md
+  - Deployment: deployment.md
   - ADR: ADR.md
   - API: API.md

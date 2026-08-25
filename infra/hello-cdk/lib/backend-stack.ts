@@ -4,6 +4,7 @@ import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion, Storag
 import { InstanceType, Vpc} from 'aws-cdk-lib/aws-ec2';
 import { SecurityGroup, Peer, Port, InstanceClass, InstanceSize} from 'aws-cdk-lib/aws-ec2';
 import { DbCredentialsToSsm } from './db-credentials-parameter';
+import { EnvironmentName } from './environment';
 
 
 /**
@@ -18,7 +19,7 @@ export const DATABASE_NAME = 'cloudsheet';
 
 
 export interface BackendStackConfig {
-  environment: 'dev' | 'prod';
+  environment: EnvironmentName;
   /** Bump to force a re-sync of the credentials into Parameter Store. */
   dbSyncVersion?: string;
 }

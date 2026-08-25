@@ -7,10 +7,12 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Mfa, OAuthScope, UserPool, UserPoolClient, UserPoolClientIdentityProvider} from 'aws-cdk-lib/aws-cognito'
 import * as cr from 'aws-cdk-lib/custom-resources';
+import { EnvironmentName, scopedName } from './environment';
 
 export interface FrontendStackConfig {
+  /** Globally unique bucket name -- derived from the environment in bin/hello-cdk.ts. */
   bucketName: string;
-  environment: 'dev' | 'prod';
+  environment: EnvironmentName;
 }
 /*
 interface CognitoConfig {
@@ -34,7 +36,7 @@ export class FrontendStack extends Stack {
       this, //stack in which Bucket will be deployed
       "S3Bucket", //logical ressource name
       {
-        bucketName: "cloudsheets-frontend-bucket",
+        bucketName: config.bucketName, //globally unique, so dev and prod cannot share one
         publicReadAccess: false, 
         blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
         versioned: true,
@@ -44,9 +46,10 @@ export class FrontendStack extends Stack {
     )
 
     //Create OAC explicitly so it becomes more managable
+    // The OAC name has to be unique per account, so it carries the environment too.
     const oac = new cloudfront.CfnOriginAccessControl(this, 'CloudSheetsOAC', {
       originAccessControlConfig: {
-        name: 'CloudSheetsOAC',
+        name: scopedName('CloudSheetsOAC', config.environment),
         originAccessControlOriginType: 's3',
         signingBehavior: 'always',
         signingProtocol: 'sigv4',
@@ -84,7 +87,7 @@ export class FrontendStack extends Stack {
    
 
     const userPool = new UserPool(this, 'FrontendUserPool', {
-        userPoolName: 'cloudsheets-user-pool',
+        userPoolName: scopedName('cloudsheets-user-pool', config.environment),
         selfSignUpEnabled: true,
         signInAliases:{
           email: true

@@ -6,9 +6,10 @@ import { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
 import { Vpc, ISecurityGroup, ISubnet } from 'aws-cdk-lib/aws-ec2';
 import { DbCredentialsToSsm, dbParameterArn } from './db-credentials-parameter';
 import { DATABASE_NAME } from './backend-stack';
+import { EnvironmentName, scopedName } from './environment';
 
 export interface EcsExpressStackConfig {
-  environment: "dev" | "prod";
+  environment: EnvironmentName;
   cognitoUserPoolId: string;
   cognitoClientId: string;
   cognitoDomain: string;
@@ -67,7 +68,8 @@ export class EcsExpressStack extends Stack {
 
     // ECS Express Mode service — replaces App Runner
     const service = new CfnExpressGatewayService(this, 'ExpressService', {
-      serviceName: 'cloudsheets-backend',
+      // Unique per environment: a prod deploy must not adopt the dev service.
+      serviceName: scopedName('cloudsheets-backend', config.environment),
       executionRoleArn: executionRole.roleArn,
       infrastructureRoleArn: infrastructureRole.roleArn,
       primaryContainer: {
