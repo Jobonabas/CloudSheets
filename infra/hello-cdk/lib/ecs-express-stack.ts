@@ -101,8 +101,17 @@ export class EcsExpressStack extends Stack {
           },
         ],
       },
+      // Express Mode places its gateway load balancer in exactly these subnets, and
+      // the resource has no `scheme` / `internetFacing` property -- the subnets decide.
+      // With private subnets the ALB comes up *internal*: the endpoint resolved to
+      // 10.0.245.77 / 10.0.172.123 and every request from outside the VPC timed out,
+      // including the pipeline's own /health smoke test. The tasks themselves were
+      // healthy the whole time, so the symptom looks like a broken container but is not.
+      //
+      // The security group below applies to the tasks. Express Mode creates its own
+      // security group for the gateway, so BackendSG needs no ingress rule.
       networkConfiguration: {
-        subnets: config.vpc.privateSubnets.map((subnet: ISubnet) => subnet.subnetId),
+        subnets: config.vpc.publicSubnets.map((subnet: ISubnet) => subnet.subnetId),
         securityGroups: [config.backendSecurityGroup.securityGroupId],
       },
       cpu: '256',
