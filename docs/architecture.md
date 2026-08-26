@@ -26,10 +26,10 @@ graph TB
 
     subgraph AWS ["☁️ AWS"]
         S3["S3 Bucket\nStatic SPA Files"]
-        AR["App Runner\nBackend (Fastify + hocuspocus)"]
+        AR["ECS Express\nBackend (Fastify + hocuspocus)"]
         RDS["RDS PostgreSQL\nUsers, Sheets, Yjs Snapshots"]
         Cognito["AWS Cognito\nAuth Service"]
-        SSM["SSM Parameter Store\nConfig & Secrets"]
+        SSM["SSM Parameter Store\nDB Credentials"]
         ECR["ECR\nContainer Registry"]
     end
 
@@ -43,7 +43,7 @@ graph TB
     Browser -->|"WebSocket"| AR
     Browser -->|"JWT"| Cognito
     AR -->|"SQL"| RDS
-    AR -->|"Read Secrets"| SSM
+    SSM -->|"Injected at task start"| AR
     GH -->|"cdk deploy"| CDK
     GH -->|"docker push"| ECR
     ECR -->|"Pull Image"| AR
@@ -85,9 +85,12 @@ sequenceDiagram
     participant U as User (Browser)
     participant S3 as S3 (Frontend)
     participant C as Cognito (Auth)
-    participant AR as App Runner (Backend)
+    participant AR as ECS Express (Backend)
     participant DB as RDS PostgreSQL
     participant SSM as SSM Parameter Store
+
+    Note over AR,SSM: Once per task start, before the container runs
+    SSM-->>AR: Inject DB_USERNAME / DB_PASSWORD
 
     U->>S3: Open app
     S3-->>U: Serve React SPA
@@ -105,7 +108,6 @@ sequenceDiagram
 
     Note over AR,DB: Periodically save Yjs doc snapshot
     AR->>DB: Persist Yjs doc state
-    AR->>SSM: Read config/secrets
 ```
 
 ## Deployment Pipeline
