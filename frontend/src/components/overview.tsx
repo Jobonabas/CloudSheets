@@ -19,9 +19,22 @@ interface OverviewProps {
   apiUrl: string;
 }
 
+// Backend gibt { userSheets, sharedSheets } zurück, nicht direkt ein Array.
+async function fetchSheets(apiUrl: string, token: string): Promise<TableItem[]> {
+  const res = await fetch(`${apiUrl}/sheets`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return [...(data.userSheets ?? []), ...(data.sharedSheets ?? [])];
+}
+
 export default function Overview({ apiUrl }: OverviewProps) {
   const navigate = useNavigate();
   const auth = useAuth();
+  const accessToken = auth.user?.access_token;
   const [rowData, setRowData] = useState<TableItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,30 +49,19 @@ export default function Overview({ apiUrl }: OverviewProps) {
 
   const defaultColDef = useMemo<ColDef>(() => ({ sortable: true, filter: true, resizable: true }), []);
 
-  const fetchTables = useCallback(async () => {
-    if (!auth.user?.access_token) return; // noch kein Token vorhanden
+  useEffect(() => {
+    if (!accessToken) return; // noch kein Token vorhanden
 
-    try {
-      setLoading(true);
-      // Backend gibt { userSheets, sharedSheets } zurück, nicht direkt ein Array
-      const res = await fetch(`${apiUrl}/sheets`, {
-        headers: {
-          Authorization: `Bearer ${auth.user.access_token}`,
-        },
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setRowData([...(data.userSheets ?? []), ...(data.sharedSheets ?? [])]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
-    } finally {
-      setLoading(false);
-    }
-  }, [apiUrl, auth.user?.access_token]);
+    let cancelled = false;
+    fetchSheets(apiUrl, accessToken)
+      .then((sheets) => { if (!cancelled) setRowData(sheets); })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
 
-  useEffect(() => { fetchTables(); }, [fetchTables]);
+    return () => { cancelled = true; };
+  }, [apiUrl, accessToken]);
 
   const onRowClicked = useCallback((event: RowClickedEvent<TableItem>) => {
     if (event.data) {

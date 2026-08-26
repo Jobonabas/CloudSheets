@@ -1,5 +1,5 @@
 import { useAuth } from "react-oidc-context";
-import Overview from "../src/components/Overview"; // Pfad an deine Struktur anpassen
+import Overview from "./components/overview";
 
 interface AppConfig {
   clientId: string;
