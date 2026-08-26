@@ -5,6 +5,7 @@ import { Role, ServicePrincipal, ManagedPolicy } from 'aws-cdk-lib/aws-iam';
 import { DatabaseInstance } from 'aws-cdk-lib/aws-rds';
 import { Vpc, ISecurityGroup, ISubnet } from 'aws-cdk-lib/aws-ec2';
 
+
 export interface EcsExpressStackConfig {
   environment: "dev" | "prod";
   cognitoUserPoolId: string;
@@ -19,6 +20,7 @@ export interface EcsExpressStackConfig {
   database: DatabaseInstance;
   vpc: Vpc;
   backendSecurityGroup: ISecurityGroup;
+  frontendUrl: string;
 }
 
 export class EcsExpressStack extends Stack {
@@ -73,7 +75,8 @@ export class EcsExpressStack extends Stack {
           // "development" section, which has SSL disabled and fails against RDS.
           { name: 'NODE_ENV', value: 'production' },
           { name: 'DB_SSL', value: 'true' },
-          { name: 'PORT', value: String(containerPort) }
+          { name: 'PORT', value: String(containerPort) },
+          { name: 'FRONTEND_URL', value: config.frontendUrl}
         ],
       },
       networkConfiguration: {

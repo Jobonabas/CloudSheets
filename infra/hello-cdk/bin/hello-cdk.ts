@@ -90,8 +90,10 @@ const ecsExpressStack = new EcsExpressStack(app, `EcsExpressStack-${environment}
   database: backendStack.postgresDB,
   vpc: backendStack.vpc,
   backendSecurityGroup: backendStack.backendSG,
+  frontendUrl: USE_CUSTOM_DOMAIN ? `https://${DOMAIN_NAME}` : '<deine-cloudfront-domain-manuell-eintragen>',
   }, {
   env,
+  crossRegionReferences: true,
 });
 
 const frontendStack = new FrontendStack(app, `FrontendStack-${environment}`, {
