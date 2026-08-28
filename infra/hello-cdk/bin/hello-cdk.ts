@@ -90,7 +90,6 @@ new CloudWatchDashboardStack(
   scopedName('CloudWatchDashboardStack', environment),
   {
     environment,
-    clusterName: scopedName('cloudsheets-cluster', environment),
     serviceName: scopedName('cloudsheets-backend', environment),
     dbInstanceIdentifier: backendStack.postgresDB.instanceIdentifier,
     distributionId: frontendStack.distributionId, 

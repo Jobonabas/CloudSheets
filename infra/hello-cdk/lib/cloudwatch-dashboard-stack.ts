@@ -10,7 +10,6 @@ import { EnvironmentName, scopedName } from './environment';
 
 export interface DashboardStackConfig {
   environment: EnvironmentName;
-  clusterName: string,
   serviceName: string,
   dbInstanceIdentifier: string;
   distributionId: string;
@@ -35,7 +34,6 @@ export class CloudWatchDashboardStack extends Stack {
                     namespace: 'AWS/ECS',
                     metricName: 'CPUUtilization',
                     dimensionsMap: {
-                        ClusterName: config.clusterName,
                         ServiceName: config.serviceName,
                     },
                     statistic: 'Average',
@@ -74,10 +72,11 @@ export class CloudWatchDashboardStack extends Stack {
                     namespace: 'AWS/CloudFront',
                     metricName: 'Requests',
                     dimensionsMap: {
-                        DistributionId: config.distributionId
+                        DistributionId: config.distributionId,
                     },
                     statistic: 'Sum',
-                    period: Duration.minutes(5), 
+                    period: Duration.minutes(5),
+                    region: 'us-east-1',
                 }),
             ],
         }),
