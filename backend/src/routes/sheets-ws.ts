@@ -23,8 +23,27 @@ export default async function (
     url: '/sheets/:id/sync',
     method: 'GET',
     schema: {...WSSheetSchema},
-    wsHandler: async (connection, request) => {
+    // In @fastify/websocket 11 ist der erste Parameter der Socket selbst und kein
+    // Wrapper mit .socket - siehe types/index.d.ts, WebsocketHandler.
+    wsHandler: async (socket, request) => {
       const { id } = request.params as { id: string };
+
+      // Die Pruefungen weiter unten sind asynchron, der Client faengt aber sofort
+      // nach dem Upgrade an zu senden. Die Listener muessen deshalb VOR dem ersten
+      // await haengen, sonst gehen die ersten Nachrichten verloren und die
+      // Verbindung steht stumm. Bis handleConnection die Gegenstelle liefert,
+      // werden sie hier zwischengelagert.
+      let client: ReturnType<typeof ws_server.handleConnection> | null = null;
+      const pending: Uint8Array[] = [];
+
+      socket.on('message', (data: Buffer) => {
+        const message = new Uint8Array(data);
+        if (client) client.handleMessage(message);
+        else pending.push(message);
+      });
+      socket.on('close', (code: number, reason: Buffer) => {
+        client?.handleClose({ code, reason: reason.toString() });
+      });
 
       let payload = await verifyUser(request.headers.authorization);
       if (!payload?.sub) {
@@ -34,11 +53,11 @@ export default async function (
 
       const sheet = await db('sheets').where({ id }).first();
       if (!sheet) { 
-        connection.socket.send(JSON.stringify({
+        socket.send(JSON.stringify({
           message: 'Sheet not found',
           success: false
         }));
-        connection.socket.close();
+        socket.close();
         return;
       }
       // Permission check
@@ -51,8 +70,8 @@ export default async function (
         allowed = await hasPermission(user_id, id, 'viewer')
       }
       if (!allowed) {
-        connection.socket.send(JSON.stringify({ message: 'No access', success: false }));
-        connection.socket.close();
+        socket.send(JSON.stringify({ message: 'No access', success: false }));
+        socket.close();
         return;
       }
 
@@ -64,8 +83,16 @@ export default async function (
       });
       
       // Open Websocket Connection for Document (identified by database id)
-      ws_server.handleConnection(connection.socket, webRequest, { docName: id, userId: user_id, token: request.headers.authorization});
+      // handleConnection haengt sich nicht selbst an den Socket - das Weiterreichen
+      // der Nachrichten oben ist Pflicht, sonst passiert auf der Verbindung nichts.
+      client = ws_server.handleConnection(socket, webRequest, { docName: id, userId: user_id, token: request.headers.authorization});
 
+      // Nachholen, was waehrend der Pruefungen eingetroffen ist - in der Reihenfolge
+      // des Eingangs, sonst kommt die Anmeldung nach den Dokumentdaten an.
+      for (const message of pending) {
+        client.handleMessage(message);
+      }
+      pending.length = 0;
     },
     handler: async function myHandler(request, reply) {
       //handles normal HTTP request
