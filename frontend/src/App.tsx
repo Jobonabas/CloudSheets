@@ -1,5 +1,7 @@
-import { useAuth } from "react-oidc-context";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { useSession } from "./auth/session";
 import Overview from "./components/overview";
+import SheetView from "./components/sheetView";
 
 interface AppConfig {
   clientId: string;
@@ -12,7 +14,7 @@ interface AppProps {
 }
 
 function App({ config }: AppProps) {
-  const auth = useAuth();
+  const session = useSession();
 
   const signOutRedirect = () => {
     const clientId = config.clientId;
@@ -21,31 +23,49 @@ function App({ config }: AppProps) {
     window.location.href = `${cognitoDomain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
   };
 
-  if (auth.isLoading) {
+  if (session.isLoading) {
     return <div>Loading...</div>;
   }
 
-  if (auth.error) {
-    return <div>Encountering error... {auth.error.message}</div>;
+  if (session.errorMessage) {
+    return <div>Encountering error... {session.errorMessage}</div>;
   }
 
-  if (auth.isAuthenticated) {
+  if (session.isAuthenticated) {
     return (
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem' }}>
-          <span>Hello: {auth.user?.profile.email}</span>
-          <button onClick={() => auth.removeUser()}>Sign out</button>
-        </div>
-        <Overview apiUrl={config.apiUrl} /> {/* NEU: statt der Token-Debug-Ausgabe */}
-      </div>
+      <>
+        <header className="app-header">
+          <span className="app-header__brand">CloudSheets</span>
+          <span className="app-header__user">
+            {session.email}
+            <button className="btn btn--on-dark" onClick={session.signOut}>Abmelden</button>
+          </span>
+        </header>
+        <main className="app-main">
+          <Routes>
+            <Route path="/" element={<Overview apiUrl={config.apiUrl} />} />
+            <Route path="/sheet/:id" element={<SheetView />} />
+            {/* Cognito leitet immer auf "/" zurueck; alles andere ist ein veralteter
+                oder vertippter Link und landet auf der Uebersicht statt auf leer. */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </>
     );
   }
 
   return (
-    <div>
-      <button onClick={() => auth.signinRedirect()}>Sign in</button>
-      <button onClick={() => signOutRedirect()}>Sign out</button>
-    </div>
+    <>
+      <header className="app-header">
+        <span className="app-header__brand">CloudSheets</span>
+      </header>
+      <main className="app-main">
+        <div className="toolbar">
+          <button className="btn btn--primary" onClick={session.signIn}>Anmelden</button>
+          <button className="btn btn--outline" onClick={() => signOutRedirect()}>Abmelden</button>
+        </div>
+      </main>
+    </>
   );
 }
 

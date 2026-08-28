@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Lokale Env-Vorlage, siehe README
+.env.local.example

@@ -1,111 +1,310 @@
+/* ---------------------------------------------------------------------------
+   CloudSheets - Basis-Stylesheet
+
+   Die Palette stammt aus Coolors und steht unveraendert unter "Palette". Alles
+   darunter sind Rollen: Komponenten greifen ausschliesslich auf die Rollen zu,
+   nie direkt auf einen Farbnamen. Ein Palettenwechsel bleibt damit auf diesen
+   Block beschraenkt.
+--------------------------------------------------------------------------- */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Palette */
+  --frosted-blue: #89d2dc;
+  --slate-blue: #6564db;
+  --bright-indigo: #232ed1;
+  --prussian-blue: #101d42;
+  --ink-black: #0d1317;
+
+  /* Rollen: Flaechen */
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --header-bg: var(--prussian-blue);
+
+  /* Rollen: Text. --text-muted und --border sind neutrale Ergaenzungen, die die
+     Palette nicht mitbringt - fuenf gesaettigte Blautoene allein tragen keine
+     ruhige Oberflaeche. */
+  --text: var(--ink-black);
+  --text-muted: #5b6672;
+  --text-inverse: #ffffff;
+  --border: #dfe5ec;
+
+  /* Rollen: Aktionen */
+  --accent: var(--bright-indigo);
+  --accent-hover: var(--slate-blue);
+  --accent-soft: rgba(137, 210, 220, 0.18);
+  --focus: var(--frosted-blue);
+
+  /* Loeschen braucht ein eigenes Signal - innerhalb einer reinen Blaupalette
+     laesst sich "Achtung" nicht ausdruecken. */
+  --danger: #b42318;
+  --danger-hover: #8f1d13;
+
+  --radius: 6px;
+  --shadow-sm: 0 1px 2px rgba(13, 19, 23, 0.06), 0 1px 3px rgba(13, 19, 23, 0.08);
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  font: 16px/1.5 var(--sans);
   color: var(--text);
   background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+* {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  min-height: 100svh;
+  background: var(--bg);
 }
 
 h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
+h2,
+h3 {
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+h1 { font-size: 20px; }
+h2 { font-size: 18px; }
+
+p { margin: 0; }
+
+/* --- Rahmen ------------------------------------------------------------- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--header-bg);
+  color: var(--text-inverse);
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.app-header__brand {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-header__user {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.app-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.page-head__title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.page-head__sub {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* --- Bedienelemente ------------------------------------------------------ */
+
+.btn {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--text-inverse);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn--sm {
+  padding: 0.3rem 0.6rem;
+  font-size: 13px;
+}
+
+.btn--outline {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.btn--outline:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Auf dunklem Grund in der Kopfleiste. */
+.btn--on-dark {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--text-inverse);
+}
+
+.btn--on-dark:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.btn--danger {
+  padding: 0.25rem 0.6rem;
+  font-size: 13px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: rgba(180, 35, 24, 0.08);
+  border-color: rgba(180, 35, 24, 0.25);
+  color: var(--danger-hover);
+}
+
+.input {
+  font: inherit;
+  font-size: 14px;
+  padding: 0.5rem 0.7rem;
+  min-width: 16rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+  border-color: var(--accent);
+}
+
+.input:disabled {
+  opacity: 0.5;
+}
+
+.toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* --- Meldungen ----------------------------------------------------------- */
+
+.alert {
+  padding: 0.65rem 0.9rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(180, 35, 24, 0.3);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: rgba(180, 35, 24, 0.06);
+  color: var(--danger-hover);
+  font-size: 14px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.placeholder {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.placeholder__id {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* --- AG Grid ------------------------------------------------------------- */
+
+/* Quartz laesst sich ueber seine eigenen Custom Properties einfaerben, deshalb
+   hier keine Selektor-Ueberschreibungen, die beim naechsten Update brechen. */
+.ag-theme-quartz {
+  --ag-font-family: var(--sans);
+  --ag-font-size: 14px;
+  --ag-background-color: var(--surface);
+  --ag-foreground-color: var(--text);
+  --ag-border-color: var(--border);
+  --ag-header-background-color: var(--prussian-blue);
+  --ag-header-foreground-color: var(--text-inverse);
+  --ag-header-column-separator-color: rgba(255, 255, 255, 0.15);
+  --ag-row-hover-color: var(--accent-soft);
+  --ag-selected-row-background-color: var(--accent-soft);
+  --ag-odd-row-background-color: var(--surface);
+  --ag-row-border-color: var(--border);
+  --ag-wrapper-border-radius: 0;
+  --ag-border-radius: 4px;
+  --ag-input-focus-border-color: var(--accent);
+}
+
+/* Die Sortier- und Menuesymbole sitzen auf dem dunklen Header. */
+.ag-theme-quartz .ag-header-cell .ag-icon {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.grid-empty {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Spalten mit UUIDs und Cognito-Subs: lesbar, aber nicht tonangebend. */
+.ag-theme-quartz .cell-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
 }
