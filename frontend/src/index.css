@@ -108,6 +108,13 @@ p { margin: 0; }
   padding: 1.5rem;
 }
 
+/* Die Uebersicht liest sich in einer begrenzten Spalte besser, eine Tabelle
+   dagegen nicht - die soll den Schirm nutzen. Die Ausnahme haengt an der Seite
+   selbst, damit App.tsx nichts ueber die einzelnen Routen wissen muss. */
+.app-main:has(.sheet-page) {
+  max-width: none;
+}
+
 .page-head {
   display: flex;
   align-items: center;
@@ -257,17 +264,64 @@ p { margin: 0; }
   overflow: hidden;
 }
 
-.placeholder {
-  padding: 3rem 1.5rem;
-  text-align: center;
+/* Zustand der Dokumentverbindung neben dem Sheet-Titel. */
+.status {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.placeholder__id {
-  font-family: var(--mono);
+.status--connected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status--disconnected {
+  border-color: rgba(180, 35, 24, 0.3);
+  background: rgba(180, 35, 24, 0.06);
+  color: var(--danger);
+}
+
+.sheet-note {
+  margin-bottom: 1rem;
+  color: var(--text-muted);
   font-size: 13px;
-  color: var(--text);
+}
+
+/* --- Sheet-Tabelle ------------------------------------------------------- */
+
+.sheet-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sheet-grid__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sheet-grid__count,
+.sheet-grid__hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Das Grid braucht eine feste Hoehe, sonst faellt es auf null zusammen. Der Abzug
+   entspricht Kopfleiste, Innenabstand, Titelzeile und der Leiste ueber der Tabelle;
+   damit fuellt die Tabelle den Rest des Fensters. */
+.sheet-grid__viewport {
+  height: calc(100vh - 15rem);
+  min-height: 420px;
+  width: 100%;
 }
 
 /* --- AG Grid ------------------------------------------------------------- */
@@ -307,4 +361,12 @@ p { margin: 0; }
   font-family: var(--mono);
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Zeilennummern im Sheet: da, aber ohne Anspruch auf Aufmerksamkeit. */
+.ag-theme-quartz .cell-rownum {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
 }
