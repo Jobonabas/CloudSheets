@@ -1,11 +1,8 @@
 import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
 import Sensible from '@fastify/sensible'
-import db from '../db.ts'
 import fastifyWebsocket from '@fastify/websocket';
 import { ws_server } from '../webSocket_server.ts'
-import { hasPermission } from '../utils/permissions.ts'
 import { WSSheetSchema } from '../schemas/sheet.ts';
-import { verifyUser } from '../utils/verifyUser.ts'
 
 // export as fastify plugin to index.ts
 export default async function (
@@ -28,11 +25,16 @@ export default async function (
     wsHandler: async (socket, request) => {
       const { id } = request.params as { id: string };
 
-      // Die Pruefungen weiter unten sind asynchron, der Client faengt aber sofort
-      // nach dem Upgrade an zu senden. Die Listener muessen deshalb VOR dem ersten
-      // await haengen, sonst gehen die ersten Nachrichten verloren und die
-      // Verbindung steht stumm. Bis handleConnection die Gegenstelle liefert,
-      // werden sie hier zwischengelagert.
+      // No authentication here on purpose. A browser cannot set headers on a
+      // websocket, so the token travels inside the Hocuspocus protocol and is checked
+      // in onAuthenticate, which also decides the role. Doing it twice would mean two
+      // sources of truth, and the header variant is not reachable from the frontend.
+
+      // Listeners go up first and queue anything that arrives before the connection
+      // object exists. Right now nothing is awaited below, so the queue stays empty --
+      // it is here so that adding an await later cannot silently drop the first
+      // messages. That failure mode is a race: it depends on how fast the client
+      // sends, so it survives testing and shows up in front of an audience.
       let client: ReturnType<typeof ws_server.handleConnection> | null = null;
       const pending: Uint8Array[] = [];
 
@@ -45,50 +47,18 @@ export default async function (
         client?.handleClose({ code, reason: reason.toString() });
       });
 
-      let payload = await verifyUser(request.headers.authorization);
-      if (!payload?.sub) {
-        throw fastify.httpErrors.unauthorized('Invalid Session') 
-      }
-      const user_id = payload.sub;
-
-      const sheet = await db('sheets').where({ id }).first();
-      if (!sheet) { 
-        socket.send(JSON.stringify({
-          message: 'Sheet not found',
-          success: false
-        }));
-        socket.close();
-        return;
-      }
-      // Permission check
-      var allowed = false;
-      if (sheet.owner_id === user_id) {
-        //immediate access if owner
-        allowed = true;
-      } else {
-        //if not owner check for permissions (min: viewer)
-        allowed = await hasPermission(user_id, id, 'viewer')
-      }
-      if (!allowed) {
-        socket.send(JSON.stringify({ message: 'No access', success: false }));
-        socket.close();
-        return;
-      }
-
       // create standard request object (Fetch-style) from fastify request object
       const protocol = request.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
       const webRequest = new Request(`${protocol}://${request.headers.host}${request.url}`, {
         headers: new Headers(request.headers as Record<string, string>), //key value format
         method: request.method,
       });
-      
-      // Open Websocket Connection for Document (identified by database id)
-      // handleConnection haengt sich nicht selbst an den Socket - das Weiterreichen
-      // der Nachrichten oben ist Pflicht, sonst passiert auf der Verbindung nichts.
-      client = ws_server.handleConnection(socket, webRequest, { docName: id, userId: user_id, token: request.headers.authorization});
 
-      // Nachholen, was waehrend der Pruefungen eingetroffen ist - in der Reihenfolge
-      // des Eingangs, sonst kommt die Anmeldung nach den Dokumentdaten an.
+      // Open Websocket Connection for Document (identified by database id)
+      // handleConnection does not attach itself to the socket - forwarding the
+      // messages above is mandatory, otherwise nothing happens on the connection.
+      client = ws_server.handleConnection(socket, webRequest, { docName: id });
+
       for (const message of pending) {
         client.handleMessage(message);
       }
