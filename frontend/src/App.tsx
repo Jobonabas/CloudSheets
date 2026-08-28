@@ -44,7 +44,7 @@ function App({ config }: AppProps) {
         <main className="app-main">
           <Routes>
             <Route path="/" element={<Overview apiUrl={config.apiUrl} />} />
-            <Route path="/sheet/:id" element={<SheetView />} />
+            <Route path="/sheet/:id" element={<SheetView apiUrl={config.apiUrl} />} />
             {/* Cognito leitet immer auf "/" zurueck; alles andere ist ein veralteter
                 oder vertippter Link und landet auf der Uebersicht statt auf leer. */}
             <Route path="*" element={<Navigate to="/" replace />} />

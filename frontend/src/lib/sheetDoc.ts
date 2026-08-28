@@ -64,15 +64,31 @@ export interface SheetRow {
 }
 
 /**
- * Verbindungszustand des Dokuments. 'local' ist der Fall aus #45 - ein Dokument
- * ohne Provider, das nur in diesem Tab existiert. Die uebrigen Werte bedient #44.
+ * Verbindungszustand des Dokuments.
+ *
+ * 'connecting', 'connected' und 'disconnected' entsprechen eins zu eins dem
+ * WebSocketStatus des HocuspocusProviders. 'local' ist der Fall ohne Provider
+ * (useLocalSheetDoc), 'unauthorized' die abgelehnte Anmeldung - die kommt vom
+ * Provider als eigenes Ereignis und nicht als Socket-Zustand, wuerde sonst also
+ * als endloses 'connecting' erscheinen.
  */
-export type SheetDocStatus = 'local' | 'connecting' | 'connected' | 'disconnected';
+export type SheetDocStatus =
+  | 'local'
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'unauthorized';
 
 /** Rueckgabe der Dokument-Hooks. useLocalSheetDoc (#45) und useSheetDoc (#44) teilen sie sich. */
 export interface SheetDocState {
   doc: Y.Doc;
   status: SheetDocStatus;
+  /**
+   * Wahr, wenn der Server die Verbindung als 'readonly' bestaetigt hat - also fuer
+   * die Viewer-Rolle. Die Tabelle sperrt dann jede Eingabe, weil der Server
+   * Aenderungen von Viewern ohnehin still verwirft.
+   */
+  readOnly: boolean;
 }
 
 export function sheetStatusLabel(status: SheetDocStatus): string {
@@ -85,6 +101,8 @@ export function sheetStatusLabel(status: SheetDocStatus): string {
       return 'Verbunden';
     case 'disconnected':
       return 'Getrennt';
+    case 'unauthorized':
+      return 'Kein Zugriff';
   }
 }
 
@@ -120,6 +138,15 @@ export function ensureRows(doc: Y.Doc, minimum: number): void {
 
 export function appendRow(doc: Y.Doc): void {
   getRows(doc).push([createRow()]);
+}
+
+/**
+ * Zahl der Zeilen im Dokument. Gebraucht wird sie, um ein wirklich leeres
+ * Dokument von einem zu unterscheiden, aus dem jemand Zeilen geloescht hat -
+ * ensureRows allein wuerde ein absichtlich kurzes Sheet wieder auffuellen.
+ */
+export function countRows(doc: Y.Doc): number {
+  return getRows(doc).length;
 }
 
 function findRowIndex(rows: Y.Array<Y.Map<string>>, rowId: string): number {
@@ -250,19 +277,19 @@ function getLocalSheetDoc(sheetId: string): Y.Doc {
 
 /**
  * Dokument ohne Netz: der Inhalt ueberlebt den Wechsel zwischen Uebersicht und
- * Sheet, aber weder ein Neuladen noch einen zweiten Tab. Das reicht, um die
- * Tabelle zu bedienen und vorzufuehren; das Speichern und das Synchronisieren
- * zwischen Nutzern bringt #44 mit dem HocuspocusProvider.
+ * Sheet, aber weder ein Neuladen noch einen zweiten Tab.
  *
- * Die Signatur entspricht der von useSheetDoc(sheetId) aus #44, damit dort nur
- * der Aufruf in sheetView.tsx ausgetauscht werden muss.
+ * Wird seit #44 nicht mehr von sheetView.tsx benutzt - der Hook bleibt bewusst
+ * stehen. Faellt das Backend vor der Vorfuehrung aus, ist der Rueckweg auf eine
+ * bedienbare Tabelle ein einziger getauschter Aufruf in sheetView.tsx, ohne
+ * sonstige Aenderung. useSheetDoc aus ./sheetConnection liefert dieselbe Form.
  */
 export function useLocalSheetDoc(sheetId: string | undefined): SheetDocState {
   const key = sheetId ?? 'kein-sheet';
 
   // Kein doc.destroy() beim Aufraeumen: das Dokument gehoert dem Zwischenspeicher
-  // und nicht dieser Einhaengung. In #44 gehoert es dem Provider.
+  // und nicht dieser Einhaengung. Mit Provider gehoert es dem Provider.
   const doc = useMemo(() => getLocalSheetDoc(key), [key]);
 
-  return { doc, status: 'local' };
+  return { doc, status: 'local', readOnly: false };
 }

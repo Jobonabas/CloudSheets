@@ -1,0 +1,230 @@
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider';
+import * as Y from 'yjs';
+import { useSession } from '../auth/session';
+import {
+  INITIAL_ROW_COUNT,
+  countRows,
+  ensureRows,
+  type SheetDocState,
+  type SheetDocStatus,
+} from './sheetDoc';
+
+/**
+ * Verbindung eines Sheets zum Hocuspocus-Server.
+ *
+ * Das Dokument selbst und alles, was seine Struktur betrifft, liegt in
+ * ./sheetDoc. Hier geht es nur darum, wo es herkommt: statt aus einem lokalen
+ * new Y.Doc() aus einem HocuspocusProvider, der es ueber einen WebSocket mit
+ * dem Server und allen anderen Sitzungen abgleicht.
+ */
+
+/**
+ * Wie lange eine Verbindung nach dem Verlassen der Ansicht offen bleibt.
+ *
+ * Ohne diese Schonfrist waere die Verbindung unter StrictMode nicht zu halten:
+ * React haengt jede Komponente einmal zusaetzlich aus und wieder ein, der Socket
+ * wuerde also bei jedem Betreten der Seite sofort wieder geschlossen. Die Frist
+ * ueberbrueckt das und nebenbei den kurzen Weg Uebersicht -> Sheet -> Uebersicht,
+ * ohne dafuer jedes Mal neu zu verbinden.
+ */
+const RELEASE_DELAY_MS = 5000;
+
+interface ConnectionSnapshot {
+  status: SheetDocStatus;
+  readOnly: boolean;
+}
+
+interface Connection {
+  doc: Y.Doc;
+  provider: HocuspocusProvider;
+  subscribe: (onStoreChange: () => void) => () => void;
+  getSnapshot: () => ConnectionSnapshot;
+  /** Zahl der eingehaengten Ansichten. Faellt sie auf 0, laeuft die Schonfrist an. */
+  refs: number;
+  releaseTimer: number | undefined;
+}
+
+const connections = new Map<string, Connection>();
+
+/**
+ * Baut die WebSocket-Adresse aus der API-Adresse: http wird ws, https wird wss.
+ * Der Pfad ist die Route aus backend/src/routes/sheets-ws.ts.
+ */
+function syncUrl(apiUrl: string, sheetId: string): string {
+  const url = new URL(`/sheets/${encodeURIComponent(sheetId)}/sync`, apiUrl);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return url.toString();
+}
+
+function toStatus(status: WebSocketStatus): SheetDocStatus {
+  switch (status) {
+    case WebSocketStatus.Connected:
+      return 'connected';
+    case WebSocketStatus.Disconnected:
+      return 'disconnected';
+    default:
+      return 'connecting';
+  }
+}
+
+function createConnection(url: string, sheetId: string, token: string): Connection {
+  const doc = new Y.Doc({ guid: sheetId });
+  const listeners = new Set<() => void>();
+
+  let snapshot: ConnectionSnapshot = { status: 'connecting', readOnly: false };
+  // Eine abgelehnte Anmeldung ist endgueltig, der Socket meldet danach aber weiter
+  // seine Zustaende. Ohne dieses Merkmal wuerde 'Kein Zugriff' sofort wieder von
+  // einem 'Verbinde ...' ueberschrieben und niemand erfuehre den Grund.
+  let rejected = false;
+
+  const update = (patch: Partial<ConnectionSnapshot>) => {
+    const next = { ...snapshot, ...patch };
+    if (next.status === snapshot.status && next.readOnly === snapshot.readOnly) return;
+    snapshot = next;
+    for (const listener of listeners) listener();
+  };
+
+  const provider = new HocuspocusProvider({
+    url,
+    // Der Dokumentname kommt aus dieser Option, nicht aus dem Pfad der URL - der
+    // Server liest ihn aus der ersten Nachricht. Er muss die Sheet-UUID sein,
+    // sonst findet onLoadDocument die Zeile in der Tabelle sheets nicht.
+    name: sheetId,
+    document: doc,
+    // verifyUser() im Backend schneidet ein "Bearer "-Praefix ab und lehnt alles
+    // andere ab. Der Provider schickt den Token roh, deshalb das Praefix hier.
+    // Faellt weg, sobald verifyUser auch nackte Token annimmt.
+    token: `Bearer ${token}`,
+
+    onStatus: ({ status }) => {
+      if (rejected) return;
+      update({ status: toStatus(status) });
+    },
+    // Der Server bestaetigt mit der Anmeldung den Umfang der Rechte. 'readonly'
+    // entspricht der Viewer-Rolle, deren Aenderungen onChange still verwirft.
+    onAuthenticated: ({ scope }) => { update({ readOnly: scope === 'readonly' }); },
+    onAuthenticationFailed: () => {
+      rejected = true;
+      update({ status: 'unauthorized' });
+    },
+    onSynced: ({ state }) => {
+      if (!state) return;
+      seedIfEmpty(doc, snapshot.readOnly);
+    },
+  });
+
+  const connection: Connection = {
+    doc,
+    provider,
+    subscribe: (onStoreChange) => {
+      listeners.add(onStoreChange);
+      return () => { listeners.delete(onStoreChange); };
+    },
+    getSnapshot: () => snapshot,
+    refs: 0,
+    releaseTimer: undefined,
+  };
+
+  return connection;
+}
+
+/**
+ * Legt die Startzeilen an, aber erst nachdem der Serverstand eingetroffen ist.
+ *
+ * Vor dem Abgleich ist das Dokument immer leer - wer hier schon Zeilen anlegt,
+ * schiebt sie beim naechsten Update vor den echten Inhalt. Zwei Clients, die ein
+ * frisches Sheet im selben Moment zum ersten Mal oeffnen, koennen beide seeden
+ * und kaemen auf doppelte Leerzeilen; das ist ein schmales Fenster und kostet
+ * nur ein paar leere Zeilen, deshalb bleibt es unbehandelt.
+ */
+function seedIfEmpty(doc: Y.Doc, readOnly: boolean): void {
+  // Ein Viewer darf nicht schreiben - der Server wuerde die Zeilen verwerfen und
+  // die Ansicht zeigte Zeilen, die es nirgends gibt.
+  if (readOnly) return;
+  if (countRows(doc) > 0) return;
+  ensureRows(doc, INITIAL_ROW_COUNT);
+}
+
+/**
+ * Holt die Verbindung zu einem Sheet oder legt sie an.
+ *
+ * Bewusst ohne Zaehlerschritt: die Funktion laeuft im Render und muss deshalb
+ * gefahrlos mehrfach aufrufbar sein. Das Ein- und Aushaengen zaehlen retain und
+ * release, und die laufen ausschliesslich im Effekt.
+ */
+function getConnection(url: string, sheetId: string, token: string): Connection {
+  const existing = connections.get(url);
+  if (existing) return existing;
+
+  const created = createConnection(url, sheetId, token);
+  connections.set(url, created);
+  // Falls diese Ansicht nie eingehaengt wird - React darf ein Render verwerfen -
+  // raeumt die Schonfrist die Verbindung von selbst wieder ab.
+  armRelease(created, url);
+  return created;
+}
+
+function armRelease(connection: Connection, url: string): void {
+  connection.releaseTimer = window.setTimeout(() => {
+    connection.releaseTimer = undefined;
+    if (connection.refs > 0) return;
+    connection.provider.destroy();
+    connections.delete(url);
+  }, RELEASE_DELAY_MS);
+}
+
+function retain(url: string): void {
+  const connection = connections.get(url);
+  if (!connection) return;
+
+  if (connection.releaseTimer !== undefined) {
+    window.clearTimeout(connection.releaseTimer);
+    connection.releaseTimer = undefined;
+  }
+  connection.refs += 1;
+}
+
+function release(url: string): void {
+  const connection = connections.get(url);
+  if (!connection) return;
+
+  connection.refs -= 1;
+  if (connection.refs > 0 || connection.releaseTimer !== undefined) return;
+  armRelease(connection, url);
+}
+
+/**
+ * Liefert das Dokument eines Sheets samt Verbindungszustand.
+ *
+ * Gegenstueck zu useLocalSheetDoc aus #45 und mit derselben Rueckgabe, damit
+ * sheetView.tsx zwischen beiden nur den Aufruf tauschen muss.
+ *
+ * Im Ticket heisst der Hook useCollaboration; ich bin beim Namen aus der
+ * Schnittstellenabsprache geblieben, damit er zu useLocalSheetDoc und
+ * useSheetRows passt.
+ */
+export function useSheetDoc(sheetId: string | undefined, apiUrl: string): SheetDocState {
+  const { accessToken } = useSession();
+
+  const name = sheetId ?? 'kein-sheet';
+  const url = useMemo(() => syncUrl(apiUrl, name), [apiUrl, name]);
+
+  // Der Token geht nur in die erste Anlage ein: getConnection schluesselt auf die
+  // URL, eine Erneuerung im laufenden Betrieb gibt also die bestehende Verbindung
+  // zurueck. Sie abzureissen und mitten in der Bearbeitung ein neues Dokument
+  // aufzubauen waere schlimmer als ein Socket, der mit dem alten Token weiterlaeuft.
+  const connection = useMemo(
+    () => getConnection(url, name, accessToken ?? ''),
+    [url, name, accessToken],
+  );
+
+  useEffect(() => {
+    retain(url);
+    return () => { release(url); };
+  }, [url]);
+
+  const snapshot = useSyncExternalStore(connection.subscribe, connection.getSnapshot);
+
+  return { doc: connection.doc, status: snapshot.status, readOnly: snapshot.readOnly };
+}
