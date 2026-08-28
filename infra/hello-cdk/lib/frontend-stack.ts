@@ -27,6 +27,7 @@ export class FrontendStack extends Stack {
   public readonly userPoolId: string;
   public readonly userPoolClientId: string;
   public readonly cognitoDomain: string;
+  public readonly distributionId: string;
 
   constructor(scope: Construct, id: string, config: FrontendStackConfig, props?: StackProps) {
     super(scope, id, props);
@@ -78,6 +79,8 @@ export class FrontendStack extends Stack {
         },
       ],
     });
+
+    this.distributionId = distribution.distributionId;
 
     new CfnOutput(this, 'CloudFrontUrl', {
         value: `https://${distribution.distributionDomainName}`});

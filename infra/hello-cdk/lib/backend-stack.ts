@@ -67,7 +67,7 @@ export interface BackendStackConfig {
         backupRetention: Duration.days(0), //backups stored for 0 days
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete db when stack is removed for dev
       });
-
+      
       // Copy the generated credentials into SSM Parameter Store so ECS can inject them
       // at task start. RDS keeps its Secrets Manager secret as the source of truth --
       // this is the delivery mechanism to the backend, not a replacement store.
