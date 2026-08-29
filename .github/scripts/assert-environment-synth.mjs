@@ -34,7 +34,7 @@ const stacks = Object.entries(manifest.artifacts)
 
 const stackIds = stacks.map(([id]) => id).sort();
 const suffix = config.stackSuffix ?? '';
-const expected = ['BackendStack', 'FrontendStack', 'EcsExpressStack']
+const expected = ['BackendStack', 'FrontendStack', 'EcsExpressStack', 'CloudWatchDashboardStack']
   .map((base) => `${base}${suffix}`)
   .concat(config.ecrStack)
   .sort();
@@ -49,7 +49,7 @@ check(
 for (const [other, otherConfig] of Object.entries(map)) {
   if (other === environment) continue;
   const otherSuffix = otherConfig.stackSuffix ?? '';
-  const forbidden = ['BackendStack', 'FrontendStack', 'EcsExpressStack']
+  const forbidden = ['BackendStack', 'FrontendStack', 'EcsExpressStack', 'CloudWatchDashboardStack']
     .map((base) => `${base}${otherSuffix}`)
     .concat(otherConfig.ecrStack)
     // dev and prod share a base name only when both suffixes are empty, which the
