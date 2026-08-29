@@ -68,7 +68,7 @@ for (const [name, expected] of Object.entries(assertions)) {
 // Every other stack of this environment carries the same suffix, so the deploy log
 // and the job summary name exactly what CloudFormation will touch.
 const suffix = config.stackSuffix ?? '';
-const stacks = ['BackendStack', 'FrontendStack', 'EcsExpressStack']
+const stacks = ['BackendStack', 'FrontendStack', 'EcsExpressStack', 'CloudWatchDashboardStack']
   .map((base) => `${base}${suffix}`)
   .concat(config.ecrStack);
 
