@@ -85,14 +85,16 @@ new EcsExpressStack(
   { env },
 );
 
-new CloudWatchDashboardStack(
-  app,
-  scopedName('CloudWatchDashboardStack', environment),
-  {
-    environment,
-    serviceName: scopedName('cloudsheets-backend', environment),
-    dbInstanceIdentifier: backendStack.postgresDB.instanceIdentifier,
-    distributionId: frontendStack.distributionId, 
-  },
-  { env },
-)
+if (environment === 'dev') {
+  new CloudWatchDashboardStack(
+    app,
+    scopedName('CloudWatchDashboardStack', environment),
+    {
+      environment,
+      serviceName: scopedName('cloudsheets-backend', environment),
+      dbInstanceIdentifier: backendStack.postgresDB.instanceIdentifier,
+      distributionId: frontendStack.distributionId, 
+    },
+    { env },
+  )
+}
