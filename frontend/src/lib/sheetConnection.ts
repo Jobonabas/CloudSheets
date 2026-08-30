@@ -2,6 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { HocuspocusProvider, WebSocketStatus } from '@hocuspocus/provider';
 import * as Y from 'yjs';
 import { useSession } from '../auth/session';
+import { displayName, publishUser } from './presence';
 import {
   INITIAL_ROW_COUNT,
   countRows,
@@ -68,7 +69,7 @@ function toStatus(status: WebSocketStatus): SheetDocStatus {
   }
 }
 
-function createConnection(url: string, sheetId: string, token: string): Connection {
+function createConnection(url: string, sheetId: string, token: string, userName: string): Connection {
   const doc = new Y.Doc({ guid: sheetId });
   const listeners = new Set<() => void>();
 
@@ -114,6 +115,15 @@ function createConnection(url: string, sheetId: string, token: string): Connecti
     },
   });
 
+  // Wer man ist, steht sofort fest und aendert sich nicht mehr. Die Cursorposition
+  // meldet spaeter die Tabelle, sobald jemand eine Zelle anklickt.
+  //
+  // Awareness bewusst nicht abgeschaltet: Der Provider braucht sie ohnehin fuer
+  // seine Verbindungspruefung, und ohne sie gaebe es keine Anwesenheit.
+  if (provider.awareness) {
+    publishUser(provider.awareness, userName);
+  }
+
   const connection: Connection = {
     doc,
     provider,
@@ -153,11 +163,11 @@ function seedIfEmpty(doc: Y.Doc, readOnly: boolean): void {
  * gefahrlos mehrfach aufrufbar sein. Das Ein- und Aushaengen zaehlen retain und
  * release, und die laufen ausschliesslich im Effekt.
  */
-function getConnection(url: string, sheetId: string, token: string): Connection {
+function getConnection(url: string, sheetId: string, token: string, userName: string): Connection {
   const existing = connections.get(url);
   if (existing) return existing;
 
-  const created = createConnection(url, sheetId, token);
+  const created = createConnection(url, sheetId, token, userName);
   connections.set(url, created);
   // Falls diese Ansicht nie eingehaengt wird - React darf ein Render verwerfen -
   // raeumt die Schonfrist die Verbindung von selbst wieder ab.
@@ -205,18 +215,21 @@ function release(url: string): void {
  * useSheetRows passt.
  */
 export function useSheetDoc(sheetId: string | undefined, apiUrl: string): SheetDocState {
-  const { accessToken } = useSession();
+  const { accessToken, email, userId } = useSession();
 
   const name = sheetId ?? 'kein-sheet';
   const url = useMemo(() => syncUrl(apiUrl, name), [apiUrl, name]);
+  // Der Name aus der Sitzung, nicht direkt aus Cognito: useSession kapselt auch
+  // den Dev-Bypass, sonst haette man lokal keinen Namen anzuzeigen.
+  const userName = useMemo(() => displayName(email, userId), [email, userId]);
 
-  // Der Token geht nur in die erste Anlage ein: getConnection schluesselt auf die
-  // URL, eine Erneuerung im laufenden Betrieb gibt also die bestehende Verbindung
-  // zurueck. Sie abzureissen und mitten in der Bearbeitung ein neues Dokument
-  // aufzubauen waere schlimmer als ein Socket, der mit dem alten Token weiterlaeuft.
+  // Token und Name gehen nur in die erste Anlage ein: getConnection schluesselt auf
+  // die URL, eine Erneuerung im laufenden Betrieb gibt also die bestehende
+  // Verbindung zurueck. Sie abzureissen und mitten in der Bearbeitung ein neues
+  // Dokument aufzubauen waere schlimmer als ein Socket mit dem alten Token.
   const connection = useMemo(
-    () => getConnection(url, name, accessToken ?? ''),
-    [url, name, accessToken],
+    () => getConnection(url, name, accessToken ?? '', userName),
+    [url, name, accessToken, userName],
   );
 
   useEffect(() => {
@@ -226,5 +239,10 @@ export function useSheetDoc(sheetId: string | undefined, apiUrl: string): SheetD
 
   const snapshot = useSyncExternalStore(connection.subscribe, connection.getSnapshot);
 
-  return { doc: connection.doc, status: snapshot.status, readOnly: snapshot.readOnly };
+  return {
+    doc: connection.doc,
+    status: snapshot.status,
+    readOnly: snapshot.readOnly,
+    awareness: connection.provider.awareness,
+  };
 }
