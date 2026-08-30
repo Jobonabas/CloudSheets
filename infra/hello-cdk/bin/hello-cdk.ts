@@ -11,6 +11,8 @@ import {
   resolveEnvironment,
   scopedName,
 } from '../lib/environment';
+import { AuthStack } from '../lib/auth-stack';
+import { FrontendConfigStack } from '../lib/frontend-config-stack';
 
 const app = new cdk.App();
 const env = { account: '691537867581', region: 'eu-central-1' };
@@ -51,6 +53,11 @@ const frontendStack = new FrontendStack(
   { env },
 );
 
+const authStack = new AuthStack(app, scopedName('AuthStack', environment), {
+  environment,
+  callbackUrls: [frontendStack.appUrl],
+}, { env })
+
 // Only the ECR registry of the selected environment is part of the app. `cdk deploy
 // --all -c environment=dev` therefore cannot create the prod repository, and
 // `cdk deploy EcrStack -c environment=dev` fails with "no stack found" rather than
@@ -66,21 +73,39 @@ new EcrStack(
 );
 
 // ECS Express Mode backend service (replaces deprecated App Runner)
-new EcsExpressStack(
+const ecsExpressStack = new EcsExpressStack(
   app,
   scopedName('EcsExpressStack', environment),
   {
     environment,
     //Cross Stack References:
-    cognitoUserPoolId: frontendStack.userPoolId,
-    cognitoClientId: frontendStack.userPoolClientId,
-    cognitoDomain: frontendStack.cognitoDomain,
+    cognitoUserPoolId: authStack.userPoolId,
+    cognitoClientId: authStack.userPoolClientId,
+    cognitoDomain: authStack.cognitoDomain,
     // Config:
     imageUri,
+    // The real CloudFront URL, not a placeholder: FrontendStack is constructed
+    // above, so its output is available here.
+    frontendUrl: frontendStack.appUrl,
     database: backendStack.postgresDB,
     dbCredentials: backendStack.dbCredentials,
     vpc: backendStack.vpc,
     backendSecurityGroup: backendStack.backendSG,
+  },
+  { env },
+);
+
+new FrontendConfigStack(
+  app,
+  scopedName('FrontendConfigStack', environment),
+  {
+    frontendBucket: frontendStack.bucket,
+    frontendDistribution: frontendStack.distribution,
+    userPoolId: authStack.userPoolId,
+    userPoolClientId: authStack.userPoolClientId,
+    cognitoDomain: authStack.cognitoDomain,
+    callbackUrl: frontendStack.appUrl,
+    apiUrl: `https://${ecsExpressStack.endpoint}`, // endpoint hat kein Schema, siehe Kommentar dort
   },
   { env },
 );
@@ -95,4 +120,4 @@ new CloudWatchDashboardStack(
     distributionId: frontendStack.distributionId, 
   },
   { env },
-)
+);

@@ -1,44 +1,41 @@
 import { Stack, StackProps, RemovalPolicy, CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { Bucket, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
+import { Bucket, BlockPublicAccess, IBucket } from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as path from 'path';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
-import { Mfa, OAuthScope, UserPool, UserPoolClient, UserPoolClientIdentityProvider} from 'aws-cdk-lib/aws-cognito'
-import * as cr from 'aws-cdk-lib/custom-resources';
 import { EnvironmentName, scopedName } from './environment';
 
 export interface FrontendStackConfig {
   /** Globally unique bucket name -- derived from the environment in bin/hello-cdk.ts. */
   bucketName: string;
   environment: EnvironmentName;
+
 }
-/*
-interface CognitoConfig {
-  userPoolId: string;
-  userPoolClientId: string;
-  cognitoDomainUrl: string;
-  authority: string;
-  clientId: string;
-}*/
+
 
 export class FrontendStack extends Stack {
-  public readonly userPoolId: string;
-  public readonly userPoolClientId: string;
-  public readonly cognitoDomain: string;
+  /**
+   * Public URL of the deployed frontend. Handed to EcsExpressStack as the CORS
+   * origin. Safe direction: EcsExpressStack already depends on this stack for the
+   * Cognito values, so no cross-stack cycle is introduced.
+   */
+  public readonly appUrl: string;
+  public readonly bucket: IBucket;
+  public readonly distribution: cloudfront.Distribution;
   public readonly distributionId: string;
 
   constructor(scope: Construct, id: string, config: FrontendStackConfig, props?: StackProps) {
     super(scope, id, props);
-      
+
     //S3 Bucket
     const bucket = new Bucket(
       this, //stack in which Bucket will be deployed
       "S3Bucket", //logical ressource name
       {
         bucketName: config.bucketName, //globally unique, so dev and prod cannot share one
-        publicReadAccess: false, 
+        publicReadAccess: false,
         blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
         versioned: true,
         removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN, //automatically delete bucket when stack is removed for dev
@@ -59,14 +56,14 @@ export class FrontendStack extends Stack {
 
 
     const distribution = new cloudfront.Distribution(this, 'CloudSheetsDistribution', {
-        defaultBehavior: {
-          origin: origins.S3BucketOrigin.withOriginAccessControl(bucket, {
-      originAccessControlId: oac.attrId,  // <-- eigenen OAC injizieren
-    }),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
-        },
-        defaultRootObject: 'index.html',
-        errorResponses: [
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(bucket, {
+          originAccessControlId: oac.attrId,  // <-- eigenen OAC injizieren
+        }),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
+      },
+      defaultRootObject: 'index.html',
+      errorResponses: [
         {
           httpStatus: 403,
           responseHttpStatus: 200,
@@ -83,90 +80,19 @@ export class FrontendStack extends Stack {
     this.distributionId = distribution.distributionId;
 
     new CfnOutput(this, 'CloudFrontUrl', {
-        value: `https://${distribution.distributionDomainName}`});
-    
-    const baseUrl = `https://${distribution.distributionDomainName}`;
+      value: `https://${distribution.distributionDomainName}`
+    });
 
-   
+    this.appUrl = `https://${distribution.distributionDomainName}`;
+    this.bucket = bucket;
+    this.distribution = distribution;
 
-    const userPool = new UserPool(this, 'FrontendUserPool', {
-        userPoolName: scopedName('cloudsheets-user-pool', config.environment),
-        selfSignUpEnabled: true,
-        signInAliases:{
-          email: true
-        },
-        autoVerify: {email: true},
-        passwordPolicy: {
-          minLength: 12,
-          requireUppercase: true,
-          requireLowercase: true,
-          requireDigits: true,
-          requireSymbols: true,
-        },
-        mfa: Mfa.REQUIRED,
-        mfaSecondFactor: {
-          sms: false,
-          otp: true
-        },
-        removalPolicy: config.environment === 'dev' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN,
-      });
-
-      const providerDomain = userPool.addDomain('CognitoDomain', {
-        cognitoDomain: {
-            domainPrefix: `cloudsheets-auth-${config.environment}`,
-        },
-      });
-
-      
-      const userPoolClient = new UserPoolClient(this, 'FrontendUserPoolClient', {
-        userPool,
-        supportedIdentityProviders: [
-          UserPoolClientIdentityProvider.COGNITO,
-        ],
-        oAuth: {
-          flows: {
-            authorizationCodeGrant: true,
-          },
-          scopes: [OAuthScope.OPENID, OAuthScope.EMAIL, OAuthScope.PROFILE],
-          callbackUrls: [baseUrl],
-          logoutUrls: [baseUrl]
-        },
-      });
-
-      this.userPoolId = userPool.userPoolId;
-      this.userPoolClientId = userPoolClient.userPoolClientId;
-      this.cognitoDomain = providerDomain.baseUrl();
-
-      new CfnOutput(this, 'UserPoolId', {
-        value: this.userPoolId
-      });
-      
-      new CfnOutput(this, 'UserPoolClientId', {
-        value: this.userPoolClientId,
-      });
-      new CfnOutput(this, 'CognitoDomainUrl', {
-        value: this.cognitoDomain
-      });
-
-      
-       new s3deploy.BucketDeployment(this, 'DeployFrontend', {
-  sources: [
-    s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist')),
-    s3deploy.Source.jsonData('config.json', {  // ← direkt hier!
-      authority: `https://cognito-idp.${this.region}.amazonaws.com/${this.userPoolId}`,
-      clientId: this.userPoolClientId,
-      callbackUrl: baseUrl,
-      logoutUrl: baseUrl,
-      cognitoDomain: this.cognitoDomain,
-    }),
-  ],
-  destinationBucket: bucket,
-  distribution,
-  distributionPaths: ['/*'],
-});
+    new s3deploy.BucketDeployment(this, 'DeployFrontend', {
+      sources: [s3deploy.Source.asset(path.join(__dirname, '../../../frontend/dist'))],
+      destinationBucket: bucket,
+      distribution,
+      distributionPaths: ['/*'],
+      prune: false,
+    });
+  }
 }
-}
-
-/*cognitoConfig, 
-        callbackUrl: baseUrl, 
-        logoutUrl: baseUrl, */

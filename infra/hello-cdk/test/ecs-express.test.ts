@@ -5,6 +5,7 @@ import { BackendStack, DATABASE_NAME } from '../lib/backend-stack';
 
 const TEST_IMAGE_URI =
   '123456789012.dkr.ecr.eu-central-1.amazonaws.com/cloudsheets-backend-dev:testsha';
+const TEST_FRONTEND_URL = 'https://d111111abcdef8.cloudfront.net';
 
 describe('EcsExpressStack', () => {
   let template: Template;
@@ -24,7 +25,8 @@ describe('EcsExpressStack', () => {
        vpc: backendStack.vpc,
        backendSecurityGroup: backendStack.backendSG,
        database: backendStack.postgresDB,
-       dbCredentials: backendStack.dbCredentials
+       dbCredentials: backendStack.dbCredentials,
+       frontendUrl: TEST_FRONTEND_URL
       });
     template = Template.fromStack(stack);
   });
@@ -63,6 +65,9 @@ describe('EcsExpressStack', () => {
     // Must match the DBName RDS is created with, or migrations hit a database
     // that does not exist. Asserted against the shared constant, not a literal.
     expect(byName('DB_NAME')?.Value).toBe(DATABASE_NAME);
+    // The backend registers @fastify/cors with exactly this origin. Without it the
+    // browser rejects every call from the deployed frontend before it is sent.
+    expect(byName('FRONTEND_URL')?.Value).toBe(TEST_FRONTEND_URL);
   });
 
   test('never places database credentials in plain environment variables', () => {
@@ -134,6 +139,7 @@ describe('EcsExpressStack', () => {
       backendSecurityGroup: backendStack.backendSG,
       database: backendStack.postgresDB,
       dbCredentials: backendStack.dbCredentials,
+      frontendUrl: TEST_FRONTEND_URL,
     });
 
     Template.fromStack(stack).hasResourceProperties('AWS::ECS::ExpressGatewayService', {

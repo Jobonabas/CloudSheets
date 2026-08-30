@@ -1,4 +1,5 @@
 import Fastify from 'fastify'
+import cors from '@fastify/cors'
 import sheetsRoutes from './routes/sheets.ts';
 import sheets_ws_Routes from './routes/sheets-ws.ts'
 import healthRoutes from './routes/health.ts';
@@ -14,6 +15,20 @@ async function start(): Promise<void> {
     logger: true,
   })
   server.setErrorHandler(customErrorHandler); // Use Custom Errors
+
+  const requiredEnv = ['FRONTEND_URL'] as const;
+  for (const key of requiredEnv) {
+    if (!process.env[key]) {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
+  }
+
+  await server.register(cors, {
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+    methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS' ],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  })
 
   //use Swagger for API Endpoint Documentation
   await server.register(import('@fastify/swagger'), {

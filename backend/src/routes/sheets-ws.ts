@@ -1,11 +1,8 @@
 import { type FastifyInstance, type FastifyPluginOptions } from 'fastify'
 import Sensible from '@fastify/sensible'
-import db from '../db.ts'
 import fastifyWebsocket from '@fastify/websocket';
 import { ws_server } from '../webSocket_server.ts'
-import { hasPermission } from '../utils/permissions.ts'
 import { WSSheetSchema } from '../schemas/sheet.ts';
-import { verifyUser } from '../utils/verifyUser.ts'
 
 // export as fastify plugin to index.ts
 export default async function (
@@ -23,38 +20,32 @@ export default async function (
     url: '/sheets/:id/sync',
     method: 'GET',
     schema: {...WSSheetSchema},
-    wsHandler: async (connection, request) => {
+    // In @fastify/websocket 11 ist der erste Parameter der Socket selbst und kein
+    // Wrapper mit .socket - siehe types/index.d.ts, WebsocketHandler.
+    wsHandler: async (socket, request) => {
       const { id } = request.params as { id: string };
 
-      let payload = await verifyUser(request.headers.authorization);
-      if (!payload?.sub) {
-        throw fastify.httpErrors.unauthorized('Invalid Session') 
-      }
-      const user_id = payload.sub;
+      // No authentication here on purpose. A browser cannot set headers on a
+      // websocket, so the token travels inside the Hocuspocus protocol and is checked
+      // in onAuthenticate, which also decides the role. Doing it twice would mean two
+      // sources of truth, and the header variant is not reachable from the frontend.
 
-      const sheet = await db('sheets').where({ id }).first();
-      if (!sheet) { 
-        connection.socket.send(JSON.stringify({
-          message: 'Sheet not found',
-          success: false
-        }));
-        connection.socket.close();
-        return;
-      }
-      // Permission check
-      var allowed = false;
-      if (sheet.owner_id === user_id) {
-        //immediate access if owner
-        allowed = true;
-      } else {
-        //if not owner check for permissions (min: viewer)
-        allowed = await hasPermission(user_id, id, 'viewer')
-      }
-      if (!allowed) {
-        connection.socket.send(JSON.stringify({ message: 'No access', success: false }));
-        connection.socket.close();
-        return;
-      }
+      // Listeners go up first and queue anything that arrives before the connection
+      // object exists. Right now nothing is awaited below, so the queue stays empty --
+      // it is here so that adding an await later cannot silently drop the first
+      // messages. That failure mode is a race: it depends on how fast the client
+      // sends, so it survives testing and shows up in front of an audience.
+      let client: ReturnType<typeof ws_server.handleConnection> | null = null;
+      const pending: Uint8Array[] = [];
+
+      socket.on('message', (data: Buffer) => {
+        const message = new Uint8Array(data);
+        if (client) client.handleMessage(message);
+        else pending.push(message);
+      });
+      socket.on('close', (code: number, reason: Buffer) => {
+        client?.handleClose({ code, reason: reason.toString() });
+      });
 
       // create standard request object (Fetch-style) from fastify request object
       const protocol = request.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
@@ -62,10 +53,16 @@ export default async function (
         headers: new Headers(request.headers as Record<string, string>), //key value format
         method: request.method,
       });
-      
-      // Open Websocket Connection for Document (identified by database id)
-      ws_server.handleConnection(connection.socket, webRequest, { docName: id, userId: user_id, token: request.headers.authorization});
 
+      // Open Websocket Connection for Document (identified by database id)
+      // handleConnection does not attach itself to the socket - forwarding the
+      // messages above is mandatory, otherwise nothing happens on the connection.
+      client = ws_server.handleConnection(socket, webRequest, { docName: id });
+
+      for (const message of pending) {
+        client.handleMessage(message);
+      }
+      pending.length = 0;
     },
     handler: async function myHandler(request, reply) {
       //handles normal HTTP request

@@ -5,7 +5,7 @@ export function customErrorHandler(error: FastifyError, request: FastifyRequest,
     let status = error.statusCode || 500;
     let message = error.message || 'Internal Server Error';
     let success = false;
-
+    request.log.error({ err: error }, 'request failed');
     // error messages matching to sheet.ts schemas
     if (status === 400) {
         // Bad Request (e.g., invalid input, missing fields)

@@ -24,9 +24,17 @@ export interface EcsExpressStackConfig {
   dbCredentials: DbCredentialsToSsm;
   vpc: Vpc;
   backendSecurityGroup: ISecurityGroup;
+  /**
+   * Public URL of the frontend. The backend registers @fastify/cors with exactly
+   * this origin -- without it the browser blocks every request from the CloudFront
+   * domain long before it reaches the container.
+   */
+  frontendUrl: string;
 }
 
 export class EcsExpressStack extends Stack {
+  /** Gateway hostname -- note: no scheme, callers have to prefix https://. */
+  public readonly endpoint: string;
 
   constructor(scope: Construct, id: string, config: EcsExpressStackConfig, props?: StackProps) {
     super(scope, id, props);
@@ -86,7 +94,8 @@ export class EcsExpressStack extends Stack {
           // "development" section, which has SSL disabled and fails against RDS.
           { name: 'NODE_ENV', value: 'production' },
           { name: 'DB_SSL', value: 'true' },
-          { name: 'PORT', value: String(containerPort) }
+          { name: 'PORT', value: String(containerPort) },
+          { name: 'FRONTEND_URL', value: config.frontendUrl }
         ],
         // Resolved by the ECS agent from Parameter Store when the task starts, then
         // injected as environment variables into the container only.
@@ -128,5 +137,7 @@ export class EcsExpressStack extends Stack {
       value: service.attrServiceArn,
       description: 'ECS Express Service ARN',
     });
+
+    this.endpoint = service.attrEndpoint;
   }
 }

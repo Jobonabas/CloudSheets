@@ -6,17 +6,54 @@ import { verifyUser } from './utils/verifyUser.ts'
 // initialize Hocuspocus Websocket Server
 export const ws_server = new Hocuspocus({
     //TODO: add hooks for authentication/persistence here https://tiptap.dev/docs/hocuspocus/server/hooks
-    async onAuthenticate({ token }) {
+    // Single gate for the websocket: identity, sheet lookup and role all happen here.
+    //
+    // The role has to be decided in this hook and nowhere later. Hocuspocus sends the
+    // client its permission scope immediately after onAuthenticate resolves, before
+    // onLoadDocument runs -- deciding the role there would be too late to reach the
+    // client, and the UI could not lock the sheet for viewers.
+    //
+    // Note the browser cannot set headers on a websocket, so the token arrives inside
+    // the protocol (provider option `token`) rather than as an Authorization header.
+    // That is why the route no longer authenticates and this hook is the only check.
+    async onAuthenticate({ token, documentName, connectionConfig }) {
     //validate tokens before connection established
     const payload = await verifyUser(token)
 
     if (!payload?.sub) {
-        throw new Error('Unauthorized: Invalid token or user check failed') 
+        throw new Error('Unauthorized: Invalid token or user check failed')
+      }
+    const user_id = payload.sub;
+
+    const sheet = await db('sheets').where({ id: documentName }).first();
+    if (!sheet) {
+        throw new Error('Not found: unknown sheet')
       }
 
+    let role: 'owner' | 'editor' | 'viewer' | null;
+    if (sheet.owner_id === user_id) {
+        role = 'owner' //immediate access if owner
+      } else {
+        //if not owner look up the shared permission
+        const permission = await db('permissions')
+            .where({ user_id, sheet_id: documentName })
+            .first();
+        role = permission ? permission.role : null;
+      }
+
+    if (!role) {
+        throw new Error('Forbidden: no access to this sheet')
+      }
+
+    // Viewers may read but not write. Hocuspocus reports this scope to the client so
+    // the UI can lock the grid, and drops updates from the connection on its own.
+    connectionConfig.readOnly = role === 'viewer';
+
     return {
-        user: { 
-            user_id: payload.sub, 
+        userId: user_id,
+        role,
+        user: {
+            user_id: payload.sub,
             email: payload.email
         },
       }
@@ -26,6 +63,8 @@ export const ws_server = new Hocuspocus({
     console.log(`New connection to sheet: ${data.documentName}`)
     },
 
+    // Existence, access and role are already settled in onAuthenticate, so this hook
+    // only restores the document. A connection that gets here is allowed to be here.
     async onLoadDocument(data) {
         // load sheet data from db
         const sheet = await db('sheets').where({ id: data.documentName }).first();
@@ -33,14 +72,6 @@ export const ws_server = new Hocuspocus({
             // append sheet data to Y Document if existing else Y Document starts empty
             Y.applyUpdate(data.document, sheet.yjs_snapshot);
         }
-
-        //fetch users permission role for sheet
-        const permission = await db('permissions').where({ user_id: data.context.userId, sheet_id: data.documentName}).first();
-        if (sheet.owner_id === data.context.userId) {
-            data.context.role = 'owner' //owner check
-        } else {
-            data.context.role = permission ? permission.role : null; //set permission role otherwise set null
-            }
     },
     async onChange(data) {
         // Only allow editor and owner to make changes to document
