@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import SheetGrid from './sheetGrid';
-import { sheetStatusLabel } from '../lib/sheetDoc';
+import { sheetStatusLabel, type SheetDocStatus } from '../lib/sheetDoc';
 import { useSheetDoc } from '../lib/sheetConnection';
 import { useCollaborators } from '../lib/presence';
 
@@ -11,6 +11,48 @@ interface SheetViewState {
 
 interface SheetViewProps {
   apiUrl: string;
+}
+
+interface Banner {
+  tone: 'offline' | 'pending';
+  text: string;
+}
+
+function changeCount(count: number): string {
+  return count === 1 ? '1 Änderung' : `${count} Änderungen`;
+}
+
+/**
+ * Leitet das Banner aus dem tatsaechlichen Zustand ab, ohne eigenen Zustand.
+ *
+ * Es gibt bewusst keine Meldung "wieder verbunden", die nach ein paar Sekunden
+ * verschwindet. Die haette einen Zeitgeber und ein Merkmal gebraucht, das den
+ * vorherigen Zustand festhaelt - und sie sagt weniger als das, was ohnehin zu
+ * sehen ist: Das Abzeichen steht wieder auf "Verbunden" und der Zaehler der
+ * offenen Aenderungen faellt auf null.
+ */
+function connectionBanner(status: SheetDocStatus, pendingChanges: number): Banner | null {
+  if (status === 'disconnected') {
+    return {
+      tone: 'offline',
+      text: pendingChanges > 0
+        ? `Keine Verbindung zum Server. ${changeCount(pendingChanges)} warten auf die Übertragung — sie gehen nicht verloren und werden nachgeholt, sobald die Verbindung wieder steht.`
+        : 'Keine Verbindung zum Server. Du kannst weiterarbeiten; deine Eingaben werden übertragen, sobald die Verbindung wieder steht.',
+    };
+  }
+
+  // Beim ersten Laden ist der Zustand ebenfalls 'connecting', dann steht der
+  // Zaehler aber auf 0 und es erscheint nichts.
+  if (pendingChanges > 0) {
+    return {
+      tone: 'pending',
+      text: status === 'connected'
+        ? `${changeCount(pendingChanges)} werden übertragen …`
+        : `Verbindung wird wiederhergestellt — ${changeCount(pendingChanges)} werden übertragen.`,
+    };
+  }
+
+  return null;
 }
 
 export default function SheetView({ apiUrl }: SheetViewProps) {
@@ -26,8 +68,9 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
   // Das Dokument kommt aus dem HocuspocusProvider. Fuer den Rueckweg auf ein rein
   // lokales Dokument - falls das Backend vor einer Vorfuehrung ausfaellt - genuegt
   // useLocalSheetDoc(id) aus ../lib/sheetDoc; die Rueckgabe ist dieselbe.
-  const { doc, status, readOnly, awareness } = useSheetDoc(id, apiUrl);
+  const { doc, status, readOnly, awareness, pendingChanges } = useSheetDoc(id, apiUrl);
   const collaborators = useCollaborators(awareness);
+  const banner = connectionBanner(status, pendingChanges);
 
   const goBack = useCallback(() => { navigate('/'); }, [navigate]);
 
@@ -61,12 +104,12 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
       </div>
 
       {/* Ohne Verbindung sieht die Tabelle aus wie immer, nur kommt nichts an und
-          geht nichts raus. Das muss dastehen, sonst haelt man sie fuer gespeichert. */}
-      {status === 'disconnected' && (
-        <p className="sheet-note">
-          Keine Verbindung zum Server. Änderungen bleiben vorerst in diesem Tab und
-          werden übertragen, sobald die Verbindung wieder steht.
-        </p>
+          geht nichts raus. Das muss dastehen, sonst haelt man sie fuer gespeichert.
+          aria-live, damit auch ein Screenreader den Wechsel mitbekommt. */}
+      {banner && (
+        <div className={`banner banner--${banner.tone}`} role="status" aria-live="polite">
+          {banner.text}
+        </div>
       )}
 
       {status === 'unauthorized' && (
