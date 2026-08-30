@@ -1,4 +1,4 @@
-  #!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * Proves that a synthesized CDK app contains one environment and nothing else.
  *
