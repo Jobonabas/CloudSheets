@@ -93,6 +93,7 @@ jobs:
       DB_PASSWORD: cloudsheet
       DB_NAME: cloudsheet
       DB_SSL: "false"
+      FRONTEND_URL: http://127.0.0.1:8080 
       NODE_ENV: test
       AUTH_BYPASS: "true"
       # verifyUser.ts builds the Cognito verifier lazily, but aws-jwt-verify still

@@ -16,6 +16,13 @@ async function start(): Promise<void> {
   })
   server.setErrorHandler(customErrorHandler); // Use Custom Errors
 
+  const requiredEnv = ['FRONTEND_URL'] as const;
+  for (const key of requiredEnv) {
+    if (!process.env[key]) {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
+  }
+
   await server.register(cors, {
     origin: process.env.FRONTEND_URL,
     credentials: true,
