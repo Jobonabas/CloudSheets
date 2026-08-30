@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import SheetGrid from './sheetGrid';
 import { sheetStatusLabel } from '../lib/sheetDoc';
 import { useSheetDoc } from '../lib/sheetConnection';
+import { useCollaborators } from '../lib/presence';
 
 interface SheetViewState {
   title?: string;
@@ -25,7 +26,8 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
   // Das Dokument kommt aus dem HocuspocusProvider. Fuer den Rueckweg auf ein rein
   // lokales Dokument - falls das Backend vor einer Vorfuehrung ausfaellt - genuegt
   // useLocalSheetDoc(id) aus ../lib/sheetDoc; die Rueckgabe ist dieselbe.
-  const { doc, status, readOnly } = useSheetDoc(id, apiUrl);
+  const { doc, status, readOnly, awareness } = useSheetDoc(id, apiUrl);
+  const collaborators = useCollaborators(awareness);
 
   const goBack = useCallback(() => { navigate('/'); }, [navigate]);
 
@@ -40,6 +42,22 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
           <h1>{title ?? id}</h1>
           <span className={`status status--${status}`}>{sheetStatusLabel(status)}</span>
         </div>
+
+        {/* Nur sichtbar, wenn tatsaechlich jemand da ist - eine dauerhaft leere
+            Leiste "0 weitere" waere nur Rauschen. */}
+        {collaborators.length > 0 && (
+          <ul className="presence" aria-label="Weitere Bearbeiter">
+            {collaborators.map((collaborator) => (
+              <li
+                key={collaborator.clientId}
+                className={`presence__user presence__user--${collaborator.user.colorIndex}`}
+              >
+                <span className="presence__dot" aria-hidden="true" />
+                {collaborator.user.name}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Ohne Verbindung sieht die Tabelle aus wie immer, nur kommt nichts an und
@@ -64,7 +82,7 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
         </p>
       )}
 
-      <SheetGrid doc={doc} readOnly={readOnly} />
+      <SheetGrid doc={doc} readOnly={readOnly} awareness={awareness} />
     </div>
   );
 }

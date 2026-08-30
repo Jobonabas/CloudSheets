@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import * as Y from 'yjs';
+import type { Awareness } from 'y-protocols/awareness';
 
 /**
  * Datenmodell des kollaborativen Sheets.
@@ -89,6 +90,11 @@ export interface SheetDocState {
    * Aenderungen von Viewern ohnehin still verwirft.
    */
   readOnly: boolean;
+  /**
+   * Kanal fuer die Anwesenheit der anderen - Name und Cursorposition. Ohne
+   * Provider gibt es niemanden, mit dem man sie teilen koennte, dann null.
+   */
+  awareness: Awareness | null;
 }
 
 export function sheetStatusLabel(status: SheetDocStatus): string {
@@ -291,5 +297,5 @@ export function useLocalSheetDoc(sheetId: string | undefined): SheetDocState {
   // und nicht dieser Einhaengung. Mit Provider gehoert es dem Provider.
   const doc = useMemo(() => getLocalSheetDoc(key), [key]);
 
-  return { doc, status: 'local', readOnly: false };
+  return { doc, status: 'local', readOnly: false, awareness: null };
 }

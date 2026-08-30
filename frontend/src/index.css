@@ -39,6 +39,20 @@
   --danger: #b42318;
   --danger-hover: #8f1d13;
 
+  /* Rollen: Anwesenheit.
+
+     Diese sechs Farben stehen ausserhalb der Blaupalette, und das mit Absicht:
+     Sie sollen die Bearbeiter voneinander unterscheiden, nicht zur Oberflaeche
+     passen. Zwei Blautoene nebeneinander waeren als zwei Personen nicht zu
+     lesen. Die Zuordnung ergibt sich aus der Yjs-Client-ID, siehe
+     presenceColorIndex() in src/lib/presence.ts - deshalb luecklos von 0 an. */
+  --presence-0: #2563eb;
+  --presence-1: #c2410c;
+  --presence-2: #15803d;
+  --presence-3: #7c3aed;
+  --presence-4: #b91c1c;
+  --presence-5: #0e7490;
+
   --radius: 6px;
   --shadow-sm: 0 1px 2px rgba(13, 19, 23, 0.06), 0 1px 3px rgba(13, 19, 23, 0.08);
 
@@ -370,4 +384,79 @@ p { margin: 0; }
   font-size: 12px;
   color: var(--text-muted);
   text-align: right;
+}
+
+/* --- Anwesenheit --------------------------------------------------------- */
+
+/* Liste der anderen Bearbeiter neben dem Sheet-Titel. */
+.presence {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.presence__user {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.presence__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--presence-color);
+  flex: none;
+}
+
+/* Zelle, in der ein anderer Bearbeiter gerade steht.
+
+   Der Rahmen liegt als Inset-Schatten innen an, nicht als border: eine echte
+   Rahmenbreite wuerde die Zelle um zwei Pixel verschieben und die ganze Zeile
+   waeckeln lassen, sobald jemand den Cursor bewegt. */
+.ag-theme-quartz .remote-cursor {
+  position: relative;
+  box-shadow: inset 0 0 0 2px var(--presence-color);
+  overflow: visible;
+}
+
+/* Namensschild am oberen Rand der Zelle. Es haengt ueber die Zelle hinaus, damit
+   es den Inhalt nicht verdeckt - deshalb das overflow: visible oben. */
+.remote-cursor__label {
+  position: absolute;
+  top: -0.95rem;
+  left: -2px;
+  z-index: 2;
+  padding: 0 0.3rem;
+  border-radius: 3px 3px 0 0;
+  background: var(--presence-color);
+  color: #ffffff;
+  font-size: 10.5px;
+  line-height: 1.55;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Die Farbe wird einmal je Bearbeiter gesetzt und von Rahmen, Punkt und Schild
+   gemeinsam benutzt. Die Zahl kommt aus presenceColorIndex(). */
+.presence__user--0, .ag-theme-quartz .remote-cursor--0 { --presence-color: var(--presence-0); }
+.presence__user--1, .ag-theme-quartz .remote-cursor--1 { --presence-color: var(--presence-1); }
+.presence__user--2, .ag-theme-quartz .remote-cursor--2 { --presence-color: var(--presence-2); }
+.presence__user--3, .ag-theme-quartz .remote-cursor--3 { --presence-color: var(--presence-3); }
+.presence__user--4, .ag-theme-quartz .remote-cursor--4 { --presence-color: var(--presence-4); }
+.presence__user--5, .ag-theme-quartz .remote-cursor--5 { --presence-color: var(--presence-5); }
+
+/* Die erste Zeile hat oberhalb keinen Platz - dort sitzt das Schild darunter. */
+.ag-theme-quartz .ag-row-first .remote-cursor__label {
+  top: auto;
+  bottom: -0.95rem;
+  border-radius: 0 0 3px 3px;
 }
