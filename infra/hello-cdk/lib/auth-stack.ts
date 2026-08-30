@@ -2,6 +2,7 @@ import { Stack, StackProps, CfnOutput, RemovalPolicy } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { Mfa, OAuthScope, UserPool, UserPoolClient, UserPoolClientIdentityProvider } from "aws-cdk-lib/aws-cognito";
 
+
 export interface AuthStackConfig {
     environment: 'dev' | 'prod';
     callbackUrls: string[];

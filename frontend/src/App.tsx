@@ -36,7 +36,7 @@ function App({ config }: AppProps) {
           <span>Hello: {auth.user?.profile.email}</span>
           <button onClick={() => auth.removeUser()}>Sign out</button>
         </div>
-        <Overview apiUrl={config.apiUrl} /> {/* NEU: statt der Token-Debug-Ausgabe */}
+        <Overview apiUrl={config.apiUrl} /> 
       </div>
     );
   }
