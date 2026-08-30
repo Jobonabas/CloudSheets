@@ -24,6 +24,7 @@ export class FrontendStack extends Stack {
   public readonly appUrl: string;
   public readonly bucket: IBucket;
   public readonly distribution: cloudfront.Distribution;
+  public readonly distributionId: string;
 
   constructor(scope: Construct, id: string, config: FrontendStackConfig, props?: StackProps) {
     super(scope, id, props);
