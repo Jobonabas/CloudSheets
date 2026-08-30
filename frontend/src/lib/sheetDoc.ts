@@ -95,6 +95,11 @@ export interface SheetDocState {
    * Provider gibt es niemanden, mit dem man sie teilen koennte, dann null.
    */
   awareness: Awareness | null;
+  /**
+   * Aenderungen, die noch nicht beim Server angekommen sind. Waechst waehrend
+   * einer Trennung und faellt beim Nachliefern auf 0 zurueck.
+   */
+  pendingChanges: number;
 }
 
 export function sheetStatusLabel(status: SheetDocStatus): string {
@@ -297,5 +302,5 @@ export function useLocalSheetDoc(sheetId: string | undefined): SheetDocState {
   // und nicht dieser Einhaengung. Mit Provider gehoert es dem Provider.
   const doc = useMemo(() => getLocalSheetDoc(key), [key]);
 
-  return { doc, status: 'local', readOnly: false, awareness: null };
+  return { doc, status: 'local', readOnly: false, awareness: null, pendingChanges: 0 };
 }

@@ -31,9 +31,65 @@ import {
  */
 const RELEASE_DELAY_MS = 5000;
 
+/**
+ * Parameter fuer den Wiederverbindungsversuch (#48).
+ *
+ * Der Provider verbindet auch ohne diesen Block neu - unbegrenzt oft und mit
+ * Streuung, das ist bereits sein Standard. Was hier abweicht, ist die
+ * Geschwindigkeit der Erholung; alles andere steht der Vollstaendigkeit halber
+ * dabei, damit niemand die Werte in node_modules nachschlagen muss.
+ *
+ * Gegenueber den Standardwerten geaendert:
+ *
+ *   factor                   2   -> 1.5     langsamer wachsende Abstaende
+ *   maxDelay             30 000  -> 10 000  laengste Wartezeit ein Drittel
+ *   minDelay              1 000  -> 500     untere Grenze der Streuung
+ *   messageReconnectTimeout 30 000 -> 20 000 stumme Leitung faellt frueher auf
+ *
+ * maxDelay ist der Wert, der sich bemerkbar macht: Bei einem laengeren Ausfall
+ * wartete ein Client nach dem Standard bis zu 30 Sekunden zwischen zwei
+ * Versuchen. So lange sieht niemand auf eine tote Tabelle, ohne die Seite neu zu
+ * laden - und genau das schliesst das Akzeptanzkriterium aus.
+ */
+const RECONNECT = {
+  /** Erster Versuch sofort - eine kurze Stoerung soll man gar nicht bemerken. */
+  initialDelay: 0,
+  /** Danach eine Sekunde, und mit jedem Fehlschlag das Anderthalbfache. */
+  delay: 1000,
+  factor: 1.5,
+  /** Obergrenze fuer den Abstand zwischen zwei Versuchen. */
+  maxDelay: 10000,
+  /**
+   * Streuung, damit nicht alle Clients gleichzeitig anklopfen. Nach einem
+   * Neustart des Backends haengen sonst alle im selben Takt und treffen es
+   * gemeinsam in derselben Millisekunde.
+   */
+  jitter: true,
+  minDelay: 500,
+  /**
+   * Nie aufgeben. Ein Wert groesser 0 hiesse: nach n Versuchen bleibt die
+   * Tabelle still stehen und nur ein Neuladen hilft.
+   */
+  maxAttempts: 0,
+  /**
+   * Wann eine stumme Leitung als tot gilt. Bei Funkloechern und schlafenden
+   * Laptops wird der Socket nie sauber geschlossen - ohne diese Frist merkte der
+   * Client den Ausfall gar nicht und faenge nie an, neu zu verbinden.
+   */
+  messageReconnectTimeout: 20000,
+} as const;
+
 interface ConnectionSnapshot {
   status: SheetDocStatus;
   readOnly: boolean;
+  /**
+   * Zahl der Aenderungen, die noch beim Server ankommen muessen.
+   *
+   * Yjs sammelt sie waehrend einer Trennung im Dokument und schickt sie beim
+   * Wiederverbinden nach. Ohne diese Zahl waere "wird uebertragen, sobald die
+   * Verbindung steht" eine Behauptung, die niemand ueberpruefen kann.
+   */
+  pendingChanges: number;
 }
 
 interface Connection {
@@ -73,7 +129,7 @@ function createConnection(url: string, sheetId: string, token: string, userName:
   const doc = new Y.Doc({ guid: sheetId });
   const listeners = new Set<() => void>();
 
-  let snapshot: ConnectionSnapshot = { status: 'connecting', readOnly: false };
+  let snapshot: ConnectionSnapshot = { status: 'connecting', readOnly: false, pendingChanges: 0 };
   // Eine abgelehnte Anmeldung ist endgueltig, der Socket meldet danach aber weiter
   // seine Zustaende. Ohne dieses Merkmal wuerde 'Kein Zugriff' sofort wieder von
   // einem 'Verbinde ...' ueberschrieben und niemand erfuehre den Grund.
@@ -81,7 +137,13 @@ function createConnection(url: string, sheetId: string, token: string, userName:
 
   const update = (patch: Partial<ConnectionSnapshot>) => {
     const next = { ...snapshot, ...patch };
-    if (next.status === snapshot.status && next.readOnly === snapshot.readOnly) return;
+    if (
+      next.status === snapshot.status &&
+      next.readOnly === snapshot.readOnly &&
+      next.pendingChanges === snapshot.pendingChanges
+    ) {
+      return;
+    }
     snapshot = next;
     for (const listener of listeners) listener();
   };
@@ -98,10 +160,18 @@ function createConnection(url: string, sheetId: string, token: string, userName:
     // Faellt weg, sobald verifyUser auch nackte Token annimmt.
     token: `Bearer ${token}`,
 
+    // Wiederverbindung: siehe RECONNECT oben. Diese Optionen gehen an den
+    // WebSocket unter dem Provider, den er sich aus der url selbst anlegt.
+    ...RECONNECT,
+
     onStatus: ({ status }) => {
       if (rejected) return;
       update({ status: toStatus(status) });
     },
+    // Meldet, wie viele Aenderungen noch nicht beim Server sind. Waehrend einer
+    // Trennung waechst die Zahl mit jeder Eingabe und faellt beim Nachliefern
+    // wieder auf 0 - daran sieht man, dass nichts verloren gegangen ist.
+    onUnsyncedChanges: ({ number }) => { update({ pendingChanges: number }); },
     // Der Server bestaetigt mit der Anmeldung den Umfang der Rechte. 'readonly'
     // entspricht der Viewer-Rolle, deren Aenderungen onChange still verwirft.
     onAuthenticated: ({ scope }) => { update({ readOnly: scope === 'readonly' }); },
@@ -244,5 +314,6 @@ export function useSheetDoc(sheetId: string | undefined, apiUrl: string): SheetD
     status: snapshot.status,
     readOnly: snapshot.readOnly,
     awareness: connection.provider.awareness,
+    pendingChanges: snapshot.pendingChanges,
   };
 }
