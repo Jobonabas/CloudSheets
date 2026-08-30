@@ -454,9 +454,21 @@ p { margin: 0; }
 .presence__user--4, .ag-theme-quartz .remote-cursor--4 { --presence-color: var(--presence-4); }
 .presence__user--5, .ag-theme-quartz .remote-cursor--5 { --presence-color: var(--presence-5); }
 
-/* Die erste Zeile hat oberhalb keinen Platz - dort sitzt das Schild darunter. */
+/* Die erste Zeile hat oberhalb keinen Platz - dort rueckt das Schild in die Zelle
+   hinein, in die untere rechte Ecke.
+
+   Nicht nach unten heraushaengend: AG Grid zeichnet die Zeilen der Reihe nach, die
+   zweite Zeile kaeme also ueber das Schild der ersten und verdeckte es. Nach oben
+   tritt das nicht auf, weil die darueberliegende Zeile frueher gezeichnet wird.
+   Ueber die Stapelreihenfolge liesse sich das zwar loesen, aber nur mit einer
+   Zeilenklasse - und die wertet AG Grid erst bei einem vollstaendigen redrawRows
+   neu aus, was bei jeder fremden Cursorbewegung die Tabelle neu aufbauen wuerde.
+
+   Innen unten rechts kollidiert es kaum: Zellinhalte sind linksbuendig. */
 .ag-theme-quartz .ag-row-first .remote-cursor__label {
   top: auto;
-  bottom: -0.95rem;
-  border-radius: 0 0 3px 3px;
+  bottom: 0;
+  left: auto;
+  right: 0;
+  border-radius: 3px 0 0 0;
 }
