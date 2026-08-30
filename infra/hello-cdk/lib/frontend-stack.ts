@@ -76,6 +76,8 @@ export class FrontendStack extends Stack {
       ],
     });
 
+    this.distributionId = distribution.distributionId;
+
     new CfnOutput(this, 'CloudFrontUrl', {
       value: `https://${distribution.distributionDomainName}`
     });

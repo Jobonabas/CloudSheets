@@ -4,6 +4,7 @@ import { FrontendStack } from '../lib/frontend-stack';
 import { BackendStack } from '../lib/backend-stack';
 import { EcrStack } from '../lib/ecr-stack';
 import { EcsExpressStack } from '../lib/ecs-express-stack';
+import { CloudWatchDashboardStack } from '../lib/cloudwatch-dashboard-stack';
 import {
   ENVIRONMENTS,
   backendImageUri,
@@ -105,6 +106,18 @@ new FrontendConfigStack(
     cognitoDomain: authStack.cognitoDomain,
     callbackUrl: frontendStack.appUrl,
     apiUrl: `https://${ecsExpressStack.endpoint}`, // endpoint hat kein Schema, siehe Kommentar dort
+  },
+  { env },
+);
+
+new CloudWatchDashboardStack(
+  app,
+  scopedName('CloudWatchDashboardStack', environment),
+  {
+    environment,
+    serviceName: scopedName('cloudsheets-backend', environment),
+    dbInstanceIdentifier: backendStack.postgresDB.instanceIdentifier,
+    distributionId: frontendStack.distributionId, 
   },
   { env },
 );
