@@ -89,6 +89,7 @@ export class FrontendStack extends Stack {
       destinationBucket: bucket,
       distribution,
       distributionPaths: ['/*'],
+      prune: false,
     });
   }
 }

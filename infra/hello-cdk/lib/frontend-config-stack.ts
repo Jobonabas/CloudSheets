@@ -32,6 +32,7 @@ export class FrontendConfigStack extends Stack {
             destinationBucket: config.frontendBucket,
             distribution: config.frontendDistribution,
             distributionPaths: ['/config.json'],
+            prune: false,
         });
     }
 }

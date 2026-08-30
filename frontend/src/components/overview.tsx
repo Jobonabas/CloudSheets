@@ -1,8 +1,16 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, ICellRendererParams, RowClickedEvent } from 'ag-grid-community';
-import { useAuth } from 'react-oidc-context';
+import type {
+  ColDef,
+  GridApi,
+  GridReadyEvent,
+  ICellRendererParams,
+  ModelUpdatedEvent,
+  RowClickedEvent,
+} from 'ag-grid-community';
+import { useSession } from '../auth/session';
+import { compareSheetDate } from '../lib/dates';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
@@ -11,8 +19,9 @@ export interface TableItem {
   id: string;
   title: string;
   owner_id: string;
-  created_at: Date;
-  updated_at: Date;
+  // ISO-Strings, keine Date-Objekte: so kommen sie aus dem JSON des Backends.
+  created_at: string;
+  updated_at: string;
 }
 
 interface OverviewProps {
@@ -83,14 +92,15 @@ async function deleteSheet(apiUrl: string, token: string, id: string): Promise<v
 
 export default function Overview({ apiUrl }: OverviewProps) {
   const navigate = useNavigate();
-  const auth = useAuth();
-  const accessToken = auth.user?.access_token;
-  const currentUserId = auth.user?.profile.sub;
+  const { accessToken, userId: currentUserId } = useSession();
   const [rowData, setRowData] = useState<TableItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState<string>('');
   const [busy, setBusy] = useState<boolean>(false);
+  const gridApiRef = useRef<GridApi<TableItem> | null>(null);
+  const [filterActive, setFilterActive] = useState<boolean>(false);
+  const [visibleCount, setVisibleCount] = useState<number>(0);
 
   useEffect(() => {
     if (!accessToken) return; // noch kein Token vorhanden
@@ -147,11 +157,20 @@ export default function Overview({ apiUrl }: OverviewProps) {
   }, [apiUrl, accessToken, reload]);
 
   const columnDefs = useMemo<ColDef<TableItem>[]>(() => [
-    { field: 'id', headerName: 'ID', width: 90, filter: 'agTextColumnFilter' },
-    { field: 'title', headerName: 'Title', flex: 1, filter: 'agTextColumnFilter' },
-    { field: 'owner_id', headerName: 'Owner ID', flex: 1, filter: 'agTextColumnFilter' },
-    { field: 'created_at', headerName: 'Created At', flex: 1, filter: 'agDateColumnFilter', valueFormatter: (p) => new Date(p.value).toLocaleDateString('de-DE') },
-    { field: 'updated_at', headerName: 'Updated At', flex: 1, filter: 'agDateColumnFilter', valueFormatter: (p) => new Date(p.value).toLocaleDateString('de-DE') },
+    { field: 'title', headerName: 'Titel', flex: 2, minWidth: 200, filter: 'agTextColumnFilter' },
+    { field: 'created_at', headerName: 'Erstellt', flex: 1, minWidth: 120, filter: 'agDateColumnFilter', filterParams: { comparator: compareSheetDate }, valueFormatter: (p) => new Date(p.value).toLocaleDateString('de-DE') },
+    { field: 'updated_at', headerName: 'Geändert', flex: 1, minWidth: 120, filter: 'agDateColumnFilter', filterParams: { comparator: compareSheetDate }, valueFormatter: (p) => new Date(p.value).toLocaleDateString('de-DE') },
+    // Der rohe Cognito-Sub sagt niemandem etwas. Der valueGetter (statt eines
+    // valueFormatters) sorgt dafuer, dass Filter und Sortierung auf dem sichtbaren
+    // Text arbeiten und nicht auf der ID darunter.
+    {
+      field: 'owner_id',
+      headerName: 'Eigentümer',
+      width: 130,
+      filter: 'agTextColumnFilter',
+      valueGetter: (p) => (p.data ? (p.data.owner_id === currentUserId ? 'Ich' : 'Geteilt') : ''),
+    },
+    { field: 'id', headerName: 'ID', width: 150, filter: 'agTextColumnFilter', cellClass: 'cell-id' },
     {
       headerName: '',
       width: 110,
@@ -165,13 +184,13 @@ export default function Overview({ apiUrl }: OverviewProps) {
         return (
           <button
             type="button"
+            className="btn btn--danger"
+            // Markiert den Klick fuer onRowClicked, siehe Begruendung dort.
+            data-no-row-click=""
             disabled={busy}
-            onClick={(event) => {
-              event.stopPropagation(); // sonst oeffnet der Row-Click zusaetzlich das Sheet
-              void handleDelete(sheet);
-            }}
+            onClick={() => { void handleDelete(sheet); }}
           >
-            Loeschen
+            Löschen
           </button>
         );
       },
@@ -180,37 +199,87 @@ export default function Overview({ apiUrl }: OverviewProps) {
 
   const defaultColDef = useMemo<ColDef>(() => ({ sortable: true, filter: true, resizable: true }), []);
 
+  const onGridReady = useCallback((event: GridReadyEvent<TableItem>) => {
+    gridApiRef.current = event.api;
+  }, []);
+
+  // modelUpdated deckt beides ab: gesetzte Filter und neue Zeilen nach Create oder
+  // Delete. Ein reiner filterChanged-Handler wuerde die Anzahl veralten lassen.
+  const onModelUpdated = useCallback((event: ModelUpdatedEvent<TableItem>) => {
+    setFilterActive(Object.keys(event.api.getFilterModel()).length > 0);
+    setVisibleCount(event.api.getDisplayedRowCount());
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    gridApiRef.current?.setFilterModel(null);
+  }, []);
+
   const onRowClicked = useCallback((event: RowClickedEvent<TableItem>) => {
+    // AG Grid haengt seinen Klick-Listener nativ an die Zeile, React seine Handler
+    // dagegen an die Wurzel des Baums. Beim Klick auf den Loeschen-Button laeuft der
+    // Zeilen-Listener deshalb zuerst - ein stopPropagation() im Button-Handler kommt
+    // zu spaet und das Sheet wuerde sich trotz Loeschung noch oeffnen. Also hier am
+    // Ursprung des Klicks pruefen, woher er kam.
+    const target = event.event?.target as HTMLElement | null;
+    if (target?.closest('[data-no-row-click]')) return;
+
     if (event.data) {
-      navigate(`/sheet/${event.data.id}`);
+      // Titel mitgeben, damit die Sheet-Ansicht ihn ohne eigenen Request zeigen kann.
+      navigate(`/sheet/${event.data.id}`, { state: { title: event.data.title } });
     }
   }, [navigate]);
 
   return (
-    <div style={{ width: '100%' }}>
-      <div style={{ display: 'flex', gap: '0.5rem', paddingBottom: '1rem' }}>
-        <input
-          value={newTitle}
-          onChange={(event) => setNewTitle(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Enter') void handleCreate(); }}
-          placeholder="Titel des neuen Sheets"
-          disabled={busy}
-        />
-        <button type="button" onClick={() => void handleCreate()} disabled={busy || !newTitle.trim()}>
-          Neues Sheet
-        </button>
+    <div>
+      <div className="page-head">
+        <div className="page-head__title">
+          <h1>Meine Sheets</h1>
+          <span className="page-head__sub">
+            {filterActive
+              ? `${visibleCount} von ${rowData.length} Sheets`
+              : rowData.length === 1 ? '1 Sheet' : `${rowData.length} Sheets`}
+          </span>
+          {/* Nur sichtbar, solange ein Filter greift - sonst steht dauerhaft ein
+              Knopf da, der nichts tut, und ein vergessener Filter bleibt unbemerkt. */}
+          {filterActive && (
+            <button type="button" className="btn btn--outline btn--sm" onClick={clearFilters}>
+              Filter zurücksetzen
+            </button>
+          )}
+        </div>
+        <div className="toolbar">
+          <input
+            className="input"
+            value={newTitle}
+            onChange={(event) => setNewTitle(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') void handleCreate(); }}
+            placeholder="Titel des neuen Sheets"
+            disabled={busy}
+          />
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => void handleCreate()}
+            disabled={busy || !newTitle.trim()}
+          >
+            Neues Sheet
+          </button>
+        </div>
       </div>
 
-      {error && <div style={{ color: 'red', paddingBottom: '0.5rem' }}>Fehler: {error}</div>}
+      {error && <div className="alert">Fehler: {error}</div>}
 
-      <div className="ag-theme-quartz" style={{ height: 500, width: '100%' }}>
+      <div className="ag-theme-quartz card" style={{ height: 500, width: '100%' }}>
         <AgGridReact
           rowData={rowData}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
+          onGridReady={onGridReady}
+          onModelUpdated={onModelUpdated}
           onRowClicked={onRowClicked}
           rowStyle={{ cursor: 'pointer' }}
           loading={loading}
+          overlayNoRowsTemplate={'<div class="grid-empty">Noch keine Sheets — leg oben eins an.</div>'}
           pagination
           paginationPageSize={20}
           paginationPageSizeSelector={[10, 20, 50, 100]}
