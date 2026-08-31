@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import SheetGrid from './sheetGrid';
-import { sheetStatusLabel, type SheetDocStatus } from '../lib/sheetDoc';
+import { sheetStatusLabel } from '../lib/sheetDoc';
 import { useSheetDoc } from '../lib/sheetConnection';
 import { useCollaborators } from '../lib/presence';
 
@@ -13,46 +13,17 @@ interface SheetViewProps {
   apiUrl: string;
 }
 
-interface Banner {
-  tone: 'offline' | 'pending';
-  text: string;
-}
-
-function changeCount(count: number): string {
-  return count === 1 ? '1 Änderung' : `${count} Änderungen`;
-}
-
 /**
- * Leitet das Banner aus dem tatsaechlichen Zustand ab, ohne eigenen Zustand.
+ * Was waehrend einer Trennung neben dem Abzeichen steht.
  *
- * Es gibt bewusst keine Meldung "wieder verbunden", die nach ein paar Sekunden
- * verschwindet. Die haette einen Zeitgeber und ein Merkmal gebraucht, das den
- * vorherigen Zustand festhaelt - und sie sagt weniger als das, was ohnehin zu
- * sehen ist: Das Abzeichen steht wieder auf "Verbunden" und der Zaehler der
- * offenen Aenderungen faellt auf null.
+ * Der Zustand selbst steht schon im Abzeichen neben dem Titel; hier zu
+ * wiederholen, dass die Verbindung weg ist, brauchte es nicht. Diese Zeile sagt
+ * die Folge davon - dass nichts verloren geht - und sonst nichts.
  */
-function connectionBanner(status: SheetDocStatus, pendingChanges: number): Banner | null {
-  if (status === 'disconnected') {
-    return {
-      tone: 'offline',
-      text: pendingChanges > 0
-        ? `Keine Verbindung zum Server. ${changeCount(pendingChanges)} warten auf die Übertragung — sie gehen nicht verloren und werden nachgeholt, sobald die Verbindung wieder steht.`
-        : 'Keine Verbindung zum Server. Du kannst weiterarbeiten; deine Eingaben werden übertragen, sobald die Verbindung wieder steht.',
-    };
-  }
-
-  // Beim ersten Laden ist der Zustand ebenfalls 'connecting', dann steht der
-  // Zaehler aber auf 0 und es erscheint nichts.
-  if (pendingChanges > 0) {
-    return {
-      tone: 'pending',
-      text: status === 'connected'
-        ? `${changeCount(pendingChanges)} werden übertragen …`
-        : `Verbindung wird wiederhergestellt — ${changeCount(pendingChanges)} werden übertragen.`,
-    };
-  }
-
-  return null;
+function offlineText(pendingChanges: number): string {
+  if (pendingChanges === 0) return 'Änderungen werden nachgeholt';
+  if (pendingChanges === 1) return '1 Änderung wartet auf Übertragung';
+  return `${pendingChanges} Änderungen warten auf Übertragung`;
 }
 
 export default function SheetView({ apiUrl }: SheetViewProps) {
@@ -70,7 +41,6 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
   // useLocalSheetDoc(id) aus ../lib/sheetDoc; die Rueckgabe ist dieselbe.
   const { doc, status, readOnly, awareness, pendingChanges } = useSheetDoc(id, apiUrl);
   const collaborators = useCollaborators(awareness);
-  const banner = connectionBanner(status, pendingChanges);
 
   const goBack = useCallback(() => { navigate('/'); }, [navigate]);
 
@@ -83,7 +53,29 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
             &larr; Übersicht
           </button>
           <h1>{title ?? id}</h1>
-          <span className={`status status--${status}`}>{sheetStatusLabel(status)}</span>
+          {/* Das Abzeichen ist die einzige dauerhafte Anzeige des Zustands. Es
+              steht immer da und wechselt nur die Farbe, verschiebt also nichts.
+              aria-live, damit ein Screenreader den Wechsel mitbekommt. */}
+          <span className={`status status--${status}`} role="status" aria-live="polite">
+            {sheetStatusLabel(status)}
+          </span>
+
+          {/* Ohne Verbindung sieht die Tabelle aus wie immer, nur kommt nichts an
+              und geht nichts raus. Das muss dastehen, sonst haelt man sie fuer
+              gespeichert.
+
+              Hier in der Titelzeile und nicht als Meldung ueber der Tabelle: Eine
+              Zeile, die dort erscheint und wieder verschwindet, schoebe die
+              Tabelle bei jedem Ausfall nach unten und wieder zurueck. Diese Zeile
+              steht schon und ist so hoch wie ihr hoechstes Element - der Text
+              kommt in die Luecke daneben und bewegt nichts.
+
+              Nur bei 'disconnected', nicht schon bei offenen Aenderungen: Solange
+              die Verbindung steht, ist der Zaehler nach wenigen Millisekunden
+              wieder auf null - der Hinweis blitzte bei jedem Tastendruck auf. */}
+          {status === 'disconnected' && (
+            <span className="offline-note">{offlineText(pendingChanges)}</span>
+          )}
         </div>
 
         {/* Nur sichtbar, wenn tatsaechlich jemand da ist - eine dauerhaft leere
@@ -102,15 +94,6 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
           </ul>
         )}
       </div>
-
-      {/* Ohne Verbindung sieht die Tabelle aus wie immer, nur kommt nichts an und
-          geht nichts raus. Das muss dastehen, sonst haelt man sie fuer gespeichert.
-          aria-live, damit auch ein Screenreader den Wechsel mitbekommt. */}
-      {banner && (
-        <div className={`banner banner--${banner.tone}`} role="status" aria-live="polite">
-          {banner.text}
-        </div>
-      )}
 
       {status === 'unauthorized' && (
         <div className="alert">
