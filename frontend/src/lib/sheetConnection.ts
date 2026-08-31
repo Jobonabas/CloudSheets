@@ -32,6 +32,24 @@ import {
 const RELEASE_DELAY_MS = 5000;
 
 /**
+ * Schonfrist, bevor ein Verbindungsverlust angezeigt wird.
+ *
+ * Ein Aussetzer, den der naechste Versuch sofort behebt, soll nicht erst rot
+ * aufblitzen. Kuerzer als der Abstand zum zweiten Versuch (delay unten), damit
+ * ein echter Ausfall trotzdem gleich nach dem ersten Fehlschlag sichtbar wird.
+ */
+const OFFLINE_GRACE_MS = 1200;
+
+/**
+ * Dasselbe fuer den ersten Aufbau, nur laenger.
+ *
+ * Beim Laden der Seite ist 'Verbinde ...' die richtige Auskunft, auch wenn der
+ * erste Versuch schiefgeht. Erst wenn daraus ein paar Sekunden lang nichts wird,
+ * ist es ein Ausfall und keine Anlaufzeit mehr.
+ */
+const FIRST_CONNECT_GRACE_MS = 6000;
+
+/**
  * Parameter fuer den Wiederverbindungsversuch (#48).
  *
  * Der Provider verbindet auch ohne diesen Block neu - unbegrenzt oft und mit
@@ -95,6 +113,8 @@ interface ConnectionSnapshot {
 interface Connection {
   doc: Y.Doc;
   provider: HocuspocusProvider;
+  /** Schliesst die Verbindung und raeumt ihre Zeitgeber ab. */
+  dispose: () => void;
   subscribe: (onStoreChange: () => void) => () => void;
   getSnapshot: () => ConnectionSnapshot;
   /** Zahl der eingehaengten Ansichten. Faellt sie auf 0, laeuft die Schonfrist an. */
@@ -134,6 +154,16 @@ function createConnection(url: string, sheetId: string, token: string, userName:
   // seine Zustaende. Ohne dieses Merkmal wuerde 'Kein Zugriff' sofort wieder von
   // einem 'Verbinde ...' ueberschrieben und niemand erfuehre den Grund.
   let rejected = false;
+  // Ob die Verbindung schon einmal stand. Danach ist ein laufender Versuch keine
+  // eigene Meldung mehr wert - siehe showStatus.
+  let everConnected = false;
+  let statusTimer: number | undefined;
+
+  const clearStatusTimer = () => {
+    if (statusTimer === undefined) return;
+    window.clearTimeout(statusTimer);
+    statusTimer = undefined;
+  };
 
   const update = (patch: Partial<ConnectionSnapshot>) => {
     const next = { ...snapshot, ...patch };
@@ -146,6 +176,36 @@ function createConnection(url: string, sheetId: string, token: string, userName:
     }
     snapshot = next;
     for (const listener of listeners) listener();
+  };
+
+  /**
+   * Glaettet den Verbindungszustand fuer die Anzeige.
+   *
+   * Der Provider meldet jeden einzelnen Wiederverbindungsversuch. Waehrend eines
+   * Ausfalls wechselt sein Zustand deshalb im Sekundentakt zwischen 'verbindet'
+   * und 'getrennt'. Roh weitergereicht zappelt das Abzeichen neben dem Titel -
+   * und die Bewegung sagt nichts, was man nicht laengst weiss: Die Verbindung ist
+   * weg. Fuer die Anzeige ist beides derselbe Zustand, und der steht still, bis
+   * er sich wirklich aendert.
+   */
+  const showStatus = (next: SheetDocStatus) => {
+    if (rejected) return;
+
+    if (next === 'connected') {
+      everConnected = true;
+      clearStatusTimer();
+      update({ status: 'connected' });
+      return;
+    }
+
+    // Nicht verbunden. Steht das schon da oder ist es unterwegs, aendert der
+    // naechste Fehlversuch daran nichts.
+    if (snapshot.status === 'disconnected' || statusTimer !== undefined) return;
+
+    statusTimer = window.setTimeout(() => {
+      statusTimer = undefined;
+      update({ status: 'disconnected' });
+    }, everConnected ? OFFLINE_GRACE_MS : FIRST_CONNECT_GRACE_MS);
   };
 
   const provider = new HocuspocusProvider({
@@ -164,10 +224,7 @@ function createConnection(url: string, sheetId: string, token: string, userName:
     // WebSocket unter dem Provider, den er sich aus der url selbst anlegt.
     ...RECONNECT,
 
-    onStatus: ({ status }) => {
-      if (rejected) return;
-      update({ status: toStatus(status) });
-    },
+    onStatus: ({ status }) => { showStatus(toStatus(status)); },
     // Meldet, wie viele Aenderungen noch nicht beim Server sind. Waehrend einer
     // Trennung waechst die Zahl mit jeder Eingabe und faellt beim Nachliefern
     // wieder auf 0 - daran sieht man, dass nichts verloren gegangen ist.
@@ -176,6 +233,7 @@ function createConnection(url: string, sheetId: string, token: string, userName:
     // entspricht der Viewer-Rolle, deren Aenderungen onChange still verwirft.
     onAuthenticated: ({ scope }) => { update({ readOnly: scope === 'readonly' }); },
     onAuthenticationFailed: () => {
+      clearStatusTimer();
       rejected = true;
       update({ status: 'unauthorized' });
     },
@@ -197,6 +255,10 @@ function createConnection(url: string, sheetId: string, token: string, userName:
   const connection: Connection = {
     doc,
     provider,
+    dispose: () => {
+      clearStatusTimer();
+      provider.destroy();
+    },
     subscribe: (onStoreChange) => {
       listeners.add(onStoreChange);
       return () => { listeners.delete(onStoreChange); };
@@ -249,7 +311,7 @@ function armRelease(connection: Connection, url: string): void {
   connection.releaseTimer = window.setTimeout(() => {
     connection.releaseTimer = undefined;
     if (connection.refs > 0) return;
-    connection.provider.destroy();
+    connection.dispose();
     connections.delete(url);
   }, RELEASE_DELAY_MS);
 }
