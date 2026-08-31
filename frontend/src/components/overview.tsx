@@ -12,6 +12,8 @@ import type {
 import { useSession } from '../auth/session';
 import { compareSheetDate } from '../lib/dates';
 
+import ShareDialog from './shareDialog';
+
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 
@@ -101,6 +103,7 @@ export default function Overview({ apiUrl }: OverviewProps) {
   const gridApiRef = useRef<GridApi<TableItem> | null>(null);
   const [filterActive, setFilterActive] = useState<boolean>(false);
   const [visibleCount, setVisibleCount] = useState<number>(0);
+  const [shareSheet, setShareSheet] = useState<TableItem | null>(null);
 
   useEffect(() => {
     if (!accessToken) return; // noch kein Token vorhanden
@@ -195,6 +198,24 @@ export default function Overview({ apiUrl }: OverviewProps) {
         );
       },
     },
+    {
+      headerName: 'Optionen',
+      width: 100,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: ICellRendererParams<TableItem>) => {
+        return (
+          <button
+            type="button"
+            className="btn btn--small"
+            data-no-row-click=""
+            onClick={() => setShareSheet(params.data ?? null)}
+          >
+            Teilen
+          </button>
+        );
+      },
+    },
   ], [busy, currentUserId, handleDelete]);
 
   const defaultColDef = useMemo<ColDef>(() => ({ sortable: true, filter: true, resizable: true }), []);
@@ -284,6 +305,16 @@ export default function Overview({ apiUrl }: OverviewProps) {
           paginationPageSize={20}
           paginationPageSizeSelector={[10, 20, 50, 100]}
         />
+        {shareSheet && (
+          <ShareDialog
+            sheetId={shareSheet.id}
+            sheetTitle={shareSheet.title}
+            apiUrl={apiUrl}
+            token={accessToken}
+            onClose={() => setShareSheet(null)}
+            onShare={() => { void reload()}}
+          />
+        )}
       </div>
     </div>
   );
