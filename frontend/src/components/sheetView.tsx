@@ -13,13 +13,7 @@ interface SheetViewProps {
   apiUrl: string;
 }
 
-/**
- * Was waehrend einer Trennung neben dem Abzeichen steht.
- *
- * Der Zustand selbst steht schon im Abzeichen neben dem Titel; hier zu
- * wiederholen, dass die Verbindung weg ist, brauchte es nicht. Diese Zeile sagt
- * die Folge davon - dass nichts verloren geht - und sonst nichts.
- */
+/** Text shown next to the status badge while the connection is down. */
 function offlineText(pendingChanges: number): string {
   if (pendingChanges === 0) return 'Änderungen werden nachgeholt';
   if (pendingChanges === 1) return '1 Änderung wartet auf Übertragung';
@@ -31,21 +25,18 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Die Uebersicht reicht den Titel per Router-State mit, damit die Ansicht ihn ohne
-  // zusaetzlichen Request zeigen kann. Beim direkten Aufruf eines Links oder nach
-  // einem Reload fehlt der State - dann bleibt die ID als Ueberschrift.
+  // Passed along in router state by the overview. Missing on a direct link or after a
+  // reload, then the ID stays as the heading.
   const title = (location.state as SheetViewState | null)?.title;
 
-  // Das Dokument kommt aus dem HocuspocusProvider. Fuer den Rueckweg auf ein rein
-  // lokales Dokument - falls das Backend vor einer Vorfuehrung ausfaellt - genuegt
-  // useLocalSheetDoc(id) aus ../lib/sheetDoc; die Rueckgabe ist dieselbe.
+  // useLocalSheetDoc(id) from ../lib/sheetDoc is the offline fallback, same shape.
   const { doc, status, readOnly, awareness, pendingChanges } = useSheetDoc(id, apiUrl);
   const collaborators = useCollaborators(awareness);
 
   const goBack = useCallback(() => { navigate('/'); }, [navigate]);
 
   return (
-    // sheet-page hebt die Breitenbegrenzung der Hauptspalte auf, siehe index.css.
+    // sheet-page lifts the width limit of the main column, see index.css.
     <div className="sheet-page">
       <div className="page-head">
         <div className="page-head__title">
@@ -53,33 +44,19 @@ export default function SheetView({ apiUrl }: SheetViewProps) {
             &larr; Übersicht
           </button>
           <h1>{title ?? id}</h1>
-          {/* Das Abzeichen ist die einzige dauerhafte Anzeige des Zustands. Es
-              steht immer da und wechselt nur die Farbe, verschiebt also nichts.
-              aria-live, damit ein Screenreader den Wechsel mitbekommt. */}
+          {/* Always rendered and only changing colour, so the layout never shifts. */}
           <span className={`status status--${status}`} role="status" aria-live="polite">
             {sheetStatusLabel(status)}
           </span>
 
-          {/* Ohne Verbindung sieht die Tabelle aus wie immer, nur kommt nichts an
-              und geht nichts raus. Das muss dastehen, sonst haelt man sie fuer
-              gespeichert.
-
-              Hier in der Titelzeile und nicht als Meldung ueber der Tabelle: Eine
-              Zeile, die dort erscheint und wieder verschwindet, schoebe die
-              Tabelle bei jedem Ausfall nach unten und wieder zurueck. Diese Zeile
-              steht schon und ist so hoch wie ihr hoechstes Element - der Text
-              kommt in die Luecke daneben und bewegt nichts.
-
-              Nur bei 'disconnected', nicht schon bei offenen Aenderungen: Solange
-              die Verbindung steht, ist der Zaehler nach wenigen Millisekunden
-              wieder auf null - der Hinweis blitzte bei jedem Tastendruck auf. */}
+          {/* In the title row rather than above the grid, where it would shift the
+              layout on every outage. Only on 'disconnected': while connected the
+              counter is back to zero within milliseconds. */}
           {status === 'disconnected' && (
             <span className="offline-note">{offlineText(pendingChanges)}</span>
           )}
         </div>
 
-        {/* Nur sichtbar, wenn tatsaechlich jemand da ist - eine dauerhaft leere
-            Leiste "0 weitere" waere nur Rauschen. */}
         {collaborators.length > 0 && (
           <ul className="presence" aria-label="Weitere Bearbeiter">
             {collaborators.map((collaborator) => (

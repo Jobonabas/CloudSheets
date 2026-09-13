@@ -7,7 +7,7 @@ interface AppConfig {
   clientId: string;
   logoutUrl: string;
   cognitoDomain: string;
-  apiUrl: string; // NEU
+  apiUrl: string;
 }
 interface AppProps {
   config: AppConfig;
@@ -45,8 +45,6 @@ function App({ config }: AppProps) {
           <Routes>
             <Route path="/" element={<Overview apiUrl={config.apiUrl} />} />
             <Route path="/sheet/:id" element={<SheetView apiUrl={config.apiUrl} />} />
-            {/* Cognito leitet immer auf "/" zurueck; alles andere ist ein veralteter
-                oder vertippter Link und landet auf der Uebersicht statt auf leer. */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

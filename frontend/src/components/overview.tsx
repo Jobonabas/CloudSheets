@@ -21,7 +21,7 @@ export interface TableItem {
   id: string;
   title: string;
   owner_id: string;
-  // ISO-Strings, keine Date-Objekte: so kommen sie aus dem JSON des Backends.
+  // ISO strings, not Date objects -- that is how they arrive in the backend's JSON.
   created_at: string;
   updated_at: string;
 }
@@ -30,26 +30,24 @@ interface OverviewProps {
   apiUrl: string;
 }
 
-// Fehlerantworten des Backends sind { message, success: false }. Die Message ist
-// aussagekraeftiger als der blosse Statuscode.
+// Backend errors are { message, success: false }; the message beats the status code.
 async function readError(res: Response, fallback: string): Promise<string> {
   try {
     const body = await res.json();
     if (typeof body?.message === 'string') return body.message;
   } catch {
-    // Antwort ohne JSON-Body, es bleibt beim Fallback
+    // Response without a JSON body, the fallback stands
   }
   return fallback;
 }
 
-// Backend gibt { userSheets, sharedSheets } zurueck, nicht direkt ein Array.
+// The backend returns { userSheets, sharedSheets }, not an array directly.
 async function fetchSheets(apiUrl: string, token: string): Promise<TableItem[]> {
   const res = await fetch(`${apiUrl}/sheets`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  // Auf eine leere Liste antwortet das Backend mit 404 "No sheets found". Fuer die
-  // Uebersicht ist das kein Fehler, sondern eine leere Tabelle - sonst landet jeder
-  // frisch registrierte Nutzer direkt auf einer Fehlermeldung.
+  // The backend answers an empty list with 404 "No sheets found". For the overview
+  // that is an empty table, not an error.
   if (res.status === 404) {
     return [];
   }
@@ -68,8 +66,7 @@ async function createSheet(apiUrl: string, token: string, title: string): Promis
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    // id, created_at und updated_at sind im POST-Schema Pflicht. Die ID vergibt der
-    // Client, owner_id setzt das Backend aus dem JWT.
+    // Required by the POST schema. The client assigns the ID, the backend the owner_id.
     body: JSON.stringify({
       id: crypto.randomUUID(),
       title,
@@ -106,7 +103,7 @@ export default function Overview({ apiUrl }: OverviewProps) {
   const [shareSheet, setShareSheet] = useState<TableItem | null>(null);
 
   useEffect(() => {
-    if (!accessToken) return; // noch kein Token vorhanden
+    if (!accessToken) return; // no token yet
 
     let cancelled = false;
     fetchSheets(apiUrl, accessToken)
@@ -119,8 +116,7 @@ export default function Overview({ apiUrl }: OverviewProps) {
     return () => { cancelled = true; };
   }, [apiUrl, accessToken]);
 
-  // Nach Create und Delete neu laden, damit die Tabelle ohne Reload stimmt. Das POST
-  // liefert das angelegte Sheet nicht zurueck, ein Refetch ist also ohnehin noetig.
+  // The POST does not return the created sheet, so a refetch is needed anyway.
   const reload = useCallback(async () => {
     if (!accessToken) return;
     setRowData(await fetchSheets(apiUrl, accessToken));
@@ -163,9 +159,8 @@ export default function Overview({ apiUrl }: OverviewProps) {
     { field: 'title', headerName: 'Titel', flex: 2, minWidth: 200, filter: 'agTextColumnFilter' },
     { field: 'created_at', headerName: 'Erstellt', flex: 1, minWidth: 120, filter: 'agDateColumnFilter', filterParams: { comparator: compareSheetDate }, valueFormatter: (p) => new Date(p.value).toLocaleDateString('de-DE') },
     { field: 'updated_at', headerName: 'Geändert', flex: 1, minWidth: 120, filter: 'agDateColumnFilter', filterParams: { comparator: compareSheetDate }, valueFormatter: (p) => new Date(p.value).toLocaleDateString('de-DE') },
-    // Der rohe Cognito-Sub sagt niemandem etwas. Der valueGetter (statt eines
-    // valueFormatters) sorgt dafuer, dass Filter und Sortierung auf dem sichtbaren
-    // Text arbeiten und nicht auf der ID darunter.
+    // valueGetter and not valueFormatter, so filter and sort work on the visible text
+    // instead of the raw Cognito sub.
     {
       field: 'owner_id',
       headerName: 'Eigentümer',
@@ -182,13 +177,13 @@ export default function Overview({ apiUrl }: OverviewProps) {
       resizable: false,
       cellRenderer: (params: ICellRendererParams<TableItem>) => {
         const sheet = params.data;
-        // Loeschen darf nur der Eigentuemer, geteilte Sheets liefern sonst 403.
+        // Only the owner may delete; shared sheets would answer 403.
         if (!sheet || sheet.owner_id !== currentUserId) return null;
         return (
           <button
             type="button"
             className="btn btn--danger"
-            // Markiert den Klick fuer onRowClicked, siehe Begruendung dort.
+            // Marks the click for onRowClicked, see the reasoning there.
             data-no-row-click=""
             disabled={busy}
             onClick={() => { void handleDelete(sheet); }}
@@ -224,8 +219,7 @@ export default function Overview({ apiUrl }: OverviewProps) {
     gridApiRef.current = event.api;
   }, []);
 
-  // modelUpdated deckt beides ab: gesetzte Filter und neue Zeilen nach Create oder
-  // Delete. Ein reiner filterChanged-Handler wuerde die Anzahl veralten lassen.
+  // modelUpdated also covers new rows after create or delete, unlike filterChanged.
   const onModelUpdated = useCallback((event: ModelUpdatedEvent<TableItem>) => {
     setFilterActive(Object.keys(event.api.getFilterModel()).length > 0);
     setVisibleCount(event.api.getDisplayedRowCount());
@@ -236,16 +230,14 @@ export default function Overview({ apiUrl }: OverviewProps) {
   }, []);
 
   const onRowClicked = useCallback((event: RowClickedEvent<TableItem>) => {
-    // AG Grid haengt seinen Klick-Listener nativ an die Zeile, React seine Handler
-    // dagegen an die Wurzel des Baums. Beim Klick auf den Loeschen-Button laeuft der
-    // Zeilen-Listener deshalb zuerst - ein stopPropagation() im Button-Handler kommt
-    // zu spaet und das Sheet wuerde sich trotz Loeschung noch oeffnen. Also hier am
-    // Ursprung des Klicks pruefen, woher er kam.
+    // AG Grid binds its click listener natively to the row, React binds its handlers at
+    // the root of the tree, so the row listener runs first and a stopPropagation() in
+    // the button handler comes too late.
     const target = event.event?.target as HTMLElement | null;
     if (target?.closest('[data-no-row-click]')) return;
 
     if (event.data) {
-      // Titel mitgeben, damit die Sheet-Ansicht ihn ohne eigenen Request zeigen kann.
+      // Pass the title along so the sheet view can show it without its own request.
       navigate(`/sheet/${event.data.id}`, { state: { title: event.data.title } });
     }
   }, [navigate]);
@@ -260,8 +252,6 @@ export default function Overview({ apiUrl }: OverviewProps) {
               ? `${visibleCount} von ${rowData.length} Sheets`
               : rowData.length === 1 ? '1 Sheet' : `${rowData.length} Sheets`}
           </span>
-          {/* Nur sichtbar, solange ein Filter greift - sonst steht dauerhaft ein
-              Knopf da, der nichts tut, und ein vergessener Filter bleibt unbemerkt. */}
           {filterActive && (
             <button type="button" className="btn btn--outline btn--sm" onClick={clearFilters}>
               Filter zurücksetzen

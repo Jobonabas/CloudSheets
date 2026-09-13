@@ -1,24 +1,18 @@
 import { useAuth } from 'react-oidc-context';
 
 /**
- * Lokaler Entwicklungsschalter, der den Cognito-Login ueberspringt.
+ * Skips the Cognito login in local development. Needs VITE_DEV_AUTH_BYPASS=true in
+ * frontend/.env.local (not checked in) and import.meta.env.DEV.
  *
- * Zwei Bedingungen muessen gleichzeitig erfuellt sein:
- *   1. VITE_DEV_AUTH_BYPASS=true in frontend/.env.local (nicht eingecheckt)
- *   2. import.meta.env.DEV, also der Vite-Dev-Server
- *
- * Punkt 2 ist die eigentliche Absicherung: bei `vite build` ist DEV konstant false,
- * die Bedingung faellt auf `false` zusammen und der gesamte Bypass-Zweig wird aus dem
- * Bundle entfernt. Selbst mit gesetzter Variable kann er in einem Deploy nicht aktiv
- * werden. Passend dazu muss das Backend mit NODE_ENV=test und AUTH_BYPASS=true laufen,
- * sonst weist es den Dummy-Token zurueck.
+ * DEV is the safeguard: `vite build` makes it a constant false, so the branch is
+ * dropped from the bundle and cannot be enabled in a deployment. The backend has to
+ * run with NODE_ENV=test and AUTH_BYPASS=true to accept the dummy token.
  */
 export const DEV_AUTH_BYPASS =
   import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
 
-// Muss zum Seed in backend/seeds/development/01_demo_user.ts passen, damit das
-// Backend die Sheets demselben Nutzer zuordnet, den das Frontend als Eigentuemer
-// ansieht - sonst fehlt in der Uebersicht der Loeschen-Button.
+// Has to match backend/seeds/development/01_demo_user.ts, otherwise the backend
+// assigns sheets to a different user than the frontend treats as the owner.
 const DEV_USER_ID = 'demo-user-id';
 const DEV_USER_EMAIL = 'demo@example.com';
 
@@ -33,10 +27,7 @@ export interface Session {
   signOut: () => void;
 }
 
-/**
- * Einziger Zugriffspunkt auf den Anmeldezustand. Komponenten nutzen diesen Hook statt
- * useAuth() direkt, damit der Dev-Bypass an genau einer Stelle sitzt.
- */
+/** Single entry point to the auth state, so the dev bypass lives in one place. */
 export function useSession(): Session {
   const auth = useAuth();
 
@@ -44,8 +35,7 @@ export function useSession(): Session {
     return {
       isLoading: false,
       isAuthenticated: true,
-      // Inhalt egal: verifyUser() gibt bei AUTH_BYPASS den Demo-Nutzer zurueck,
-      // bevor der Token ueberhaupt geprueft wird.
+      // Never verified: with AUTH_BYPASS, verifyUser() returns the demo user.
       accessToken: 'dev-bypass-token',
       userId: DEV_USER_ID,
       email: DEV_USER_EMAIL,

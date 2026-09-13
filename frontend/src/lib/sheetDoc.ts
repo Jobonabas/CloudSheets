@@ -3,41 +3,30 @@ import * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
 
 /**
- * Datenmodell des kollaborativen Sheets.
- *
- * Der Hocuspocus-Server ist bezueglich der Struktur agnostisch: onLoadDocument
- * spielt nur ein Y.applyUpdate ein, onStoreDocument schreibt ein
- * Y.encodeStateAsUpdate zurueck. Die Form des Dokuments wird also ausschliesslich
- * hier festgelegt.
+ * Data model of the collaborative sheet. The Hocuspocus server is agnostic about the
+ * structure -- it only applies and stores Yjs updates -- so the shape is defined here.
  *
  *   doc.getArray('rows')  ->  Y.Array<Y.Map<string>>
  *
- * Die Y.Array traegt die Reihenfolge der Zeilen, jede Zeile ist eine Y.Map von
- * Spaltenschluessel auf Zellinhalt. Zwei gleichzeitige Bearbeitungen in
- * verschiedenen Zellen derselben Zeile verschmelzen damit ohne Konflikt; nur zwei
- * Schreibvorgaenge auf dieselbe Zelle muessen entschieden werden, und dort gilt
- * Yjs' letzter Schreiber.
+ * The Y.Array carries the row order, each row is a Y.Map from column key to cell
+ * content. Concurrent edits in different cells of a row merge without conflict; on the
+ * same cell Yjs' last writer wins.
  *
- * Zellinhalte sind Strings, keine Y.Text. Y.Text wuerde zeichenweises
- * Zusammenfuehren innerhalb einer Zelle erlauben, verlangt dafuer aber einen
- * Editor pro Zelle. Fuer eine Tabelle, in der eine Zelle als Ganzes bestaetigt
- * wird, ist der String der ehrlichere Typ.
+ * Cell contents are plain strings. Y.Text would merge character-wise but needs an
+ * editor per cell, which a grid committing whole cells does not have.
  */
 
 const ROWS_KEY = 'rows';
 const ROW_ID_KEY = 'id';
 
-/** Spaltenzahl der Tabelle. Die Spalten sind fest, das Dokument traegt keine Metadaten. */
+/** Number of columns. They are fixed; the document carries no metadata. */
 const COLUMN_COUNT = 10;
 
-/** Zeilen, die ein frisch angelegtes Dokument mitbringt, damit es nicht leer erscheint. */
+/** Rows a freshly created document starts with so it does not look empty. */
 export const INITIAL_ROW_COUNT = 25;
 
 export interface SheetColumn {
-  /**
-   * Schluessel in der Y.Map. Bewusst nicht der angezeigte Buchstabe: die
-   * Beschriftung darf sich spaeter aendern, das gespeicherte Dokument nicht.
-   */
+  /** Key in the Y.Map. Not the label -- that may change, the stored document must not. */
   key: string;
   label: string;
 }
@@ -47,31 +36,22 @@ export const SHEET_COLUMNS: readonly SheetColumn[] = Array.from(
   (_unused, index) => ({ key: `c${index}`, label: String.fromCharCode(65 + index) }),
 );
 
-/** Eine Zeile, flachgeklopft fuer AG Grid: { id, position, c0, c1, ... }. */
+/** A row flattened for AG Grid: { id, position, c0, c1, ... }. */
 export interface SheetRow {
   id: string;
   /**
-   * 1-basierte Position im Dokument, also die angezeigte Zeilennummer.
-   *
-   * Die Nummer steht bewusst in den Zeilendaten und wird nicht im Grid aus
-   * node.rowIndex berechnet. AG Grid frischt eine Zeile nur auf, wenn sich ihre
-   * Daten geaendert haben - beim Loeschen einer Zeile rutschen die darunter
-   * liegenden zwar hoch, ihre Daten bleiben aber gleich, und eine aus rowIndex
-   * abgeleitete Nummer bliebe stehen. Als Teil der Daten aendert sie sich mit
-   * und wird zuverlaessig neu gezeichnet.
+   * 1-based row number. Part of the row data instead of derived from node.rowIndex: AG
+   * Grid only refreshes a row when its data changed, and deleting a row moves the ones
+   * below up without changing theirs.
    */
   position: number;
   [column: string]: string | number;
 }
 
 /**
- * Verbindungszustand des Dokuments.
- *
- * 'connecting', 'connected' und 'disconnected' entsprechen eins zu eins dem
- * WebSocketStatus des HocuspocusProviders. 'local' ist der Fall ohne Provider
- * (useLocalSheetDoc), 'unauthorized' die abgelehnte Anmeldung - die kommt vom
- * Provider als eigenes Ereignis und nicht als Socket-Zustand, wuerde sonst also
- * als endloses 'connecting' erscheinen.
+ * 'connecting', 'connected' and 'disconnected' map onto the HocuspocusProvider's
+ * WebSocketStatus. 'local' is the case without a provider, 'unauthorized' a rejected
+ * login -- the provider reports that as its own event, not as a socket state.
  */
 export type SheetDocStatus =
   | 'local'
@@ -80,25 +60,18 @@ export type SheetDocStatus =
   | 'disconnected'
   | 'unauthorized';
 
-/** Rueckgabe der Dokument-Hooks. useLocalSheetDoc (#45) und useSheetDoc (#44) teilen sie sich. */
+/** Return value of the document hooks, shared by useLocalSheetDoc (#45) and useSheetDoc (#44). */
 export interface SheetDocState {
   doc: Y.Doc;
   status: SheetDocStatus;
   /**
-   * Wahr, wenn der Server die Verbindung als 'readonly' bestaetigt hat - also fuer
-   * die Viewer-Rolle. Die Tabelle sperrt dann jede Eingabe, weil der Server
-   * Aenderungen von Viewern ohnehin still verwirft.
+   * Set once the server confirmed the connection as 'readonly' (viewer role). The grid
+   * blocks input; the server discards changes from viewers anyway.
    */
   readOnly: boolean;
-  /**
-   * Kanal fuer die Anwesenheit der anderen - Name und Cursorposition. Ohne
-   * Provider gibt es niemanden, mit dem man sie teilen koennte, dann null.
-   */
+  /** Presence channel, null without a provider. */
   awareness: Awareness | null;
-  /**
-   * Aenderungen, die noch nicht beim Server angekommen sind. Waechst waehrend
-   * einer Trennung und faellt beim Nachliefern auf 0 zurueck.
-   */
+  /** Changes not yet acknowledged by the server. */
   pendingChanges: number;
 }
 
@@ -117,7 +90,7 @@ export function sheetStatusLabel(status: SheetDocStatus): string {
   }
 }
 
-// --- Zugriff auf das Dokument ---------------------------------------------
+// --- Document access -------------------------------------------------------
 
 function getRows(doc: Y.Doc): Y.Array<Y.Map<string>> {
   return doc.getArray<Y.Map<string>>(ROWS_KEY);
@@ -130,12 +103,10 @@ function createRow(): Y.Map<string> {
 }
 
 /**
- * Ergaenzt fehlende Zeilen bis zur Mindestanzahl - idempotent und in einer
- * einzigen Transaktion, damit die Beobachter nur einmal auslaufen.
+ * Adds missing rows up to the minimum, idempotent and in one transaction.
  *
- * Wichtig fuer #44: das darf erst laufen, wenn der Provider den Serverstand
- * eingespielt hat. Auf einem noch leeren Dokument wuerden sonst Leerzeilen
- * entstehen, die anschliessend vor dem echten Inhalt stehen.
+ * Must not run before the provider applied the server state (#44): on a still-empty
+ * document it would create blank rows that then precede the real content.
  */
 export function ensureRows(doc: Y.Doc, minimum: number): void {
   const rows = getRows(doc);
@@ -152,9 +123,8 @@ export function appendRow(doc: Y.Doc): void {
 }
 
 /**
- * Zahl der Zeilen im Dokument. Gebraucht wird sie, um ein wirklich leeres
- * Dokument von einem zu unterscheiden, aus dem jemand Zeilen geloescht hat -
- * ensureRows allein wuerde ein absichtlich kurzes Sheet wieder auffuellen.
+ * Tells a truly empty document from one someone deleted rows from -- ensureRows alone
+ * would refill a deliberately short sheet.
  */
 export function countRows(doc: Y.Doc): number {
   return getRows(doc).length;
@@ -167,15 +137,11 @@ function findRowIndex(rows: Y.Array<Y.Map<string>>, rowId: string): number {
 export function removeRow(doc: Y.Doc, rowId: string): void {
   const rows = getRows(doc);
   const index = findRowIndex(rows, rowId);
-  // Kein Fund ist kein Fehler: eine andere Sitzung kann die Zeile bereits
-  // geloescht haben, waehrend hier noch der Knopf sichtbar war.
+  // Not an error: another session may have deleted the row already.
   if (index >= 0) rows.delete(index, 1);
 }
 
-/**
- * Schreibt eine Zelle. Der Rueckgabewert sagt, ob sich etwas geaendert hat - AG
- * Grids valueSetter erwartet genau das.
- */
+/** Writes a cell. Returns whether anything changed, as AG Grid's valueSetter expects. */
 export function setCell(doc: Y.Doc, rowId: string, column: string, value: string): boolean {
   const rows = getRows(doc);
   const index = findRowIndex(rows, rowId);
@@ -184,21 +150,18 @@ export function setCell(doc: Y.Doc, rowId: string, column: string, value: string
   const row = rows.get(index);
   if ((row.get(column) ?? '') === value) return false;
 
-  // Leergeraeumte Zellen werden entfernt statt als "" abgelegt. Das Dokument
-  // wandert als Ganzes in die Spalte sheets.yjs_snapshot; leere Eintraege dort
-  // waeren nur Ballast.
+  // Cleared cells are deleted rather than stored as "", to keep the snapshot small.
   if (value === '') row.delete(column);
   else row.set(column, value);
   return true;
 }
 
-// --- Lesen fuer AG Grid ----------------------------------------------------
+// --- Reading for AG Grid ---------------------------------------------------
 
 function readRows(rows: Y.Array<Y.Map<string>>): SheetRow[] {
   return rows.toArray().map((row, index) => {
-    // Der Rueckfall greift nur bei Zeilen, die ein anderer Schreiber ohne id
-    // angelegt hat. AG Grid braucht ueber getRowId eindeutige Werte, sonst
-    // vertauscht es beim naechsten Update die Zeilen.
+    // Fallback for rows written without an id. getRowId needs unique values, otherwise
+    // AG Grid mixes up rows on the next update.
     const entry: SheetRow = { id: row.get(ROW_ID_KEY) ?? `row-${index}`, position: index + 1 };
     for (const column of SHEET_COLUMNS) {
       entry[column.key] = row.get(column.key) ?? '';
@@ -226,12 +189,8 @@ function createRowsStore(doc: Y.Doc): RowsStore {
     subscribe: (onStoreChange) => {
       if (listeners.size === 0) {
         rows.observeDeep(handleChange);
-        // Zwischen dem Anlegen des Stores (Render) und diesem Abonnement (Effekt)
-        // kann bereits eine Aenderung eingetroffen sein - bei #44 der erste
-        // Serverstand. Einmal frisch lesen schliesst diese Luecke. React
-        // vergleicht danach mit dem zuletzt gerenderten Snapshot und rendert
-        // hoechstens ein weiteres Mal; eine Schleife entsteht nicht, weil
-        // getSnapshot ab da denselben Wert zurueckgibt.
+        // A change may have arrived between store creation (render) and this
+        // subscription (effect) -- for #44 the first server state.
         snapshot = readRows(rows);
       }
       listeners.add(onStoreChange);
@@ -246,32 +205,20 @@ function createRowsStore(doc: Y.Doc): RowsStore {
 }
 
 /**
- * Liefert den Inhalt des Dokuments als einfache Zeilenobjekte und rendert neu,
- * sobald sich das Dokument aendert - gleich ob durch eine Eingabe in diesem Tab
- * oder spaeter durch ein Update vom Server.
- *
- * useSyncExternalStore statt useState plus useEffect: ein Effekt muesste den
- * Anfangszustand mit einem synchronen setState nachziehen, was der React
- * Compiler zu Recht bemaengelt.
+ * Document contents as plain row objects, re-rendered on every document change.
+ * useSyncExternalStore avoids pulling the initial state in with a synchronous setState.
  */
 export function useSheetRows(doc: Y.Doc): SheetRow[] {
   const store = useMemo(() => createRowsStore(doc), [doc]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
-// --- Lokales Dokument (#45) ------------------------------------------------
+// --- Local document (#45) --------------------------------------------------
 
 /**
- * Dokumente, die bereits in dieser Sitzung geoeffnet wurden, nach Sheet-ID.
- *
- * Ohne diesen Zwischenspeicher entstuende bei jedem Betreten der Ansicht ein
- * frisches Dokument, und der Weg Uebersicht -> Sheet -> Uebersicht -> Sheet
- * wuerde jede Eingabe verwerfen. Das Dokument haelt weder Socket noch Timer, es
- * kostet nur den Speicher der eingegebenen Zellen.
- *
- * Bewusst ein Modul-Zwischenspeicher und kein React-State: er soll das Aus- und
- * Einhaengen der Ansicht ueberdauern. Beim Neuladen der Seite ist er leer - eine
- * echte Speicherung gibt es erst mit #44 ueber sheets.yjs_snapshot.
+ * Documents already opened in this session, keyed by sheet ID. Without it the path
+ * overview -> sheet -> overview -> sheet would discard every input. A module cache and
+ * not React state, so it outlives unmounting; empty again after a page reload.
  */
 const localDocs = new Map<string, Y.Doc>();
 
@@ -279,7 +226,6 @@ function getLocalSheetDoc(sheetId: string): Y.Doc {
   const existing = localDocs.get(sheetId);
   if (existing) return existing;
 
-  // Die guid dient nur der Nachvollziehbarkeit; ohne Provider wertet sie niemand aus.
   const created = new Y.Doc({ guid: sheetId });
   ensureRows(created, INITIAL_ROW_COUNT);
   localDocs.set(sheetId, created);
@@ -287,19 +233,14 @@ function getLocalSheetDoc(sheetId: string): Y.Doc {
 }
 
 /**
- * Dokument ohne Netz: der Inhalt ueberlebt den Wechsel zwischen Uebersicht und
- * Sheet, aber weder ein Neuladen noch einen zweiten Tab.
- *
- * Wird seit #44 nicht mehr von sheetView.tsx benutzt - der Hook bleibt bewusst
- * stehen. Faellt das Backend vor der Vorfuehrung aus, ist der Rueckweg auf eine
- * bedienbare Tabelle ein einziger getauschter Aufruf in sheetView.tsx, ohne
- * sonstige Aenderung. useSheetDoc aus ./sheetConnection liefert dieselbe Form.
+ * Document without networking: the content survives switching between overview and
+ * sheet, but neither a reload nor a second tab. Unused since #44, kept as the fallback
+ * if the backend is unavailable -- useSheetDoc returns the same shape.
  */
 export function useLocalSheetDoc(sheetId: string | undefined): SheetDocState {
   const key = sheetId ?? 'kein-sheet';
 
-  // Kein doc.destroy() beim Aufraeumen: das Dokument gehoert dem Zwischenspeicher
-  // und nicht dieser Einhaengung. Mit Provider gehoert es dem Provider.
+  // No doc.destroy(): the document belongs to the cache, not to this mount.
   const doc = useMemo(() => getLocalSheetDoc(key), [key]);
 
   return { doc, status: 'local', readOnly: false, awareness: null, pendingChanges: 0 };
