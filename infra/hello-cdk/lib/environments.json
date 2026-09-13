@@ -1,0 +1,12 @@
+{
+  "dev": {
+    "ecrStack": "EcrDevStack",
+    "ecrRepository": "cloudsheets-backend-dev",
+    "stackSuffix": ""
+  },
+  "prod": {
+    "ecrStack": "EcrStack",
+    "ecrRepository": "cloudsheets-backend",
+    "stackSuffix": "-prod"
+  }
+}
