@@ -33,39 +33,25 @@ import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 
 interface SheetGridProps {
-  /** Das Dokument, dessen Inhalt die Tabelle zeigt und bearbeitet. */
   doc: Y.Doc;
-  /**
-   * Sperrt jede Aenderung. onAuthenticate im Backend meldet 'readonly' fuer die
-   * Viewer-Rolle, und Hocuspocus verwirft Updates solcher Verbindungen - ohne
-   * diese Sperre tippt ein Viewer ins Leere und merkt es erst, wenn nichts ankommt.
-   */
+  /** Blocks input for the viewer role; Hocuspocus discards their updates anyway. */
   readOnly?: boolean;
-  /**
-   * Anwesenheitskanal. null ohne Provider - dann gibt es niemanden, dessen Cursor
-   * man zeichnen koennte, und die Tabelle verhaelt sich wie vorher.
-   */
+  /** Presence channel, null without a provider. */
   awareness?: Awareness | null;
 }
 
 /**
- * Die Tabelle selbst. Sie kennt nur ein Y.Doc, keinen Provider und keine Route -
- * ob das Dokument lokal ist (#45) oder an einem WebSocket haengt (#44), aendert
- * hier nichts.
+ * The grid itself. It knows only a Y.Doc, no provider and no route, so a local (#45)
+ * and a synced (#44) document behave the same here.
  *
- * Es gibt genau einen Lese- und einen Schreibweg:
+ *   document    -> useSheetRows -> rowData
+ *   valueSetter -> setCell      -> document
  *
- *   Dokument  -> useSheetRows -> rowData
- *   valueSetter -> setCell    -> Dokument
+ * The valueSetter writes to the document only; the new values return through the
+ * observer, so local input takes the same path as a remote change.
  *
- * Der valueSetter schreibt ausschliesslich ins Dokument und fasst die Zeilenobjekte
- * nicht an. Die neuen Werte kommen den Umweg ueber den Beobachter zurueck - damit
- * sieht eine Eingabe im eigenen Tab denselben Weg wie eine Aenderung von aussen,
- * und beide koennen nicht auseinanderlaufen.
- *
- * Die Cursor der anderen (#47) laufen bewusst NICHT ueber das Dokument, sondern
- * ueber Yjs' Awareness. Sie sind fluechtig und haben in sheets.yjs_snapshot nichts
- * verloren.
+ * Remote cursors (#47) travel through Yjs' awareness and not through the document --
+ * they are ephemeral and do not belong in sheets.yjs_snapshot.
  */
 export default function SheetGrid({ doc, readOnly = false, awareness = null }: SheetGridProps) {
   const rows = useSheetRows(doc);
@@ -73,17 +59,13 @@ export default function SheetGrid({ doc, readOnly = false, awareness = null }: S
 
   const gridApiRef = useRef<GridApi<SheetRow> | null>(null);
 
-  // Die Cursor liegen in einer Ref und nicht im Zustand der Spaltendefinitionen.
-  // Wuerden die Spalten sich bei jeder fremden Bewegung neu aufbauen, wuerfe AG
-  // Grid die Tabelle jedes Mal weg. So bleiben die Definitionen stabil und nur die
-  // betroffenen Zellen werden aufgefrischt.
+  // In a ref and not in the column definitions: rebuilding the columns on every remote
+  // movement would make AG Grid discard the grid each time.
   const cursorsRef = useRef<Map<string, Collaborator>>(new Map());
 
   useEffect(() => {
     cursorsRef.current = buildCursorMap(collaborators);
-    // cellClassRules und der Renderer lesen die Ref erst beim Auffrischen. Ohne
-    // diesen Anstoss bewegte sich ein fremder Rahmen erst beim naechsten
-    // Tastendruck - dieselbe Falle wie bei den Zeilennummern in #45.
+    // cellClassRules and the renderer read the ref only on refresh.
     gridApiRef.current?.refreshCells({ force: true });
   }, [collaborators]);
 
@@ -103,12 +85,11 @@ export default function SheetGrid({ doc, readOnly = false, awareness = null }: S
       resizable: false,
       suppressMovable: true,
       cellClass: 'cell-rownum',
-      // Kommt aus den Zeilendaten, nicht aus node.rowIndex - siehe SheetRow.position.
+      // Comes from the row data, not from node.rowIndex -- see SheetRow.position.
       field: 'position',
     };
 
-    // cellClassRules statt cellClass: AG Grid wertet nur die Regeln beim
-    // Auffrischen neu aus, eine cellClass-Funktion greift bloss beim Anlegen.
+    // cellClassRules, not cellClass: only the rules are re-evaluated on refresh.
     const cursorClassRules = (columnKey: string): Record<string, (p: CellClassParams<SheetRow>) => boolean> => {
       const rules: Record<string, (p: CellClassParams<SheetRow>) => boolean> = {
         'remote-cursor': (params) => Boolean(cursorAt(params.data?.id, columnKey)),
@@ -136,7 +117,7 @@ export default function SheetGrid({ doc, readOnly = false, awareness = null }: S
         return (
           <>
             {value}
-            {/* Sitzt am Rahmen der Zelle, siehe .remote-cursor__label in index.css. */}
+            {/* Sits on the cell border, see .remote-cursor__label in index.css. */}
             <span className="remote-cursor__label">{cursor.user.name}</span>
           </>
         );
@@ -147,9 +128,8 @@ export default function SheetGrid({ doc, readOnly = false, awareness = null }: S
       },
     }));
 
-    // Sortieren und Filtern sind hier abgeschaltet: die Zeilenreihenfolge steht im
-    // Dokument, und eine sortierte Ansicht wuerde Zeilennummer und Loeschknopf auf
-    // eine andere Zeile zeigen lassen als die im Dokument darunter.
+    // Sorting and filtering are off: the row order lives in the document, and a sorted
+    // view would point the row number and delete button at the wrong row.
 
     if (readOnly) return [rowNumber, ...cells];
 
@@ -184,17 +164,15 @@ export default function SheetGrid({ doc, readOnly = false, awareness = null }: S
 
   const defaultColDef = useMemo<ColDef<SheetRow>>(() => ({ resizable: true }), []);
 
-  // Ohne stabile Zeilen-ID wirft AG Grid bei jeder Aenderung alle Zeilen weg und
-  // baut sie neu auf - eine offene Zelle waere dann bei jedem fremden Tastendruck
-  // geschlossen. Mit der ID aktualisiert das Grid nur, was sich geaendert hat.
+  // Without a stable row ID, AG Grid rebuilds all rows on every change and an open
+  // cell would close on every remote keystroke.
   const getRowId = useCallback((params: GetRowIdParams<SheetRow>) => params.data.id, []);
 
   const onGridReady = useCallback((event: GridReadyEvent<SheetRow>) => {
     gridApiRef.current = event.api;
   }, []);
 
-  // Meldet den eigenen Cursor. Auch Viewer melden ihn - wer nur zusieht, darf
-  // trotzdem zeigen, wo er gerade liest.
+  // Viewers publish a cursor as well.
   const onCellFocused = useCallback((event: CellFocusedEvent<SheetRow>) => {
     if (!awareness) return;
 
@@ -203,14 +181,12 @@ export default function SheetGrid({ doc, readOnly = false, awareness = null }: S
       ? undefined
       : event.api.getDisplayedRowAtIndex(event.rowIndex)?.data?.id;
 
-    // Die Spalten fuer Zeilennummer und Loeschknopf tragen keinen Zellinhalt; ein
-    // Cursor darauf waere fuer die anderen nicht zuzuordnen.
+    // The row-number and delete columns carry no cell content.
     const isSheetColumn = SHEET_COLUMNS.some((column) => column.key === columnKey);
     publishCell(awareness, rowId && columnKey && isSheetColumn ? { rowId, columnKey } : null);
   }, [awareness]);
 
-  // Beim Verlassen der Ansicht den eigenen Cursor abmelden. Ohne das bliebe die
-  // Markierung bei den anderen stehen, bis die Verbindung auslaeuft.
+  // Otherwise the marker stays with the others until the connection times out.
   useEffect(() => {
     if (!awareness) return;
     return () => { publishCell(awareness, null); };
@@ -241,8 +217,7 @@ export default function SheetGrid({ doc, readOnly = false, awareness = null }: S
           getRowId={getRowId}
           onGridReady={onGridReady}
           onCellFocused={onCellFocused}
-          // Ein Klick neben die Zelle soll den Wert uebernehmen. Ohne das bleibt die
-          // Zelle offen und die Eingabe haengt sichtbar in der Luft.
+          // A click outside the cell commits the value instead of leaving it open.
           stopEditingWhenCellsLoseFocus
           suppressMovableColumns
           overlayNoRowsTemplate={'<div class="grid-empty">Keine Zeilen — leg oben eine an.</div>'}

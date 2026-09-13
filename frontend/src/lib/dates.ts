@@ -1,18 +1,9 @@
 /**
- * Vergleicht einen Zellwert mit dem im Filter gewaehlten Datum.
+ * Comparator for AG Grid's date filter. The filter expects Date objects, the backend
+ * sends ISO strings, so without this the column shows a calendar but does not filter.
  *
- * AG Grids Datumsfilter erwartet von Haus aus Date-Objekte in den Zellen. Das
- * Backend liefert die Zeitstempel aber als ISO-Strings, weshalb der eingebaute
- * Vergleich wirkungslos bleibt: die Spalte zeigt zwar einen Kalender, filtert aber
- * nicht. Dieser Comparator schliesst die Luecke.
- *
- * Verglichen wird nur der Tag. Die Uhrzeit im Zellwert wuerde sonst jeden
- * "gleich"-Vergleich gegen das auf Mitternacht gesetzte Filterdatum scheitern
- * lassen. Beide Seiten werden in lokaler Zeit betrachtet, damit der Filter zu dem
- * passt, was die Spalte ueber toLocaleDateString anzeigt.
- *
- * Rueckgabe nach AG-Grid-Konvention: negativ, wenn die Zelle vor dem Filterdatum
- * liegt, positiv danach, 0 bei Gleichheit.
+ * Compares the day only and in local time, matching what toLocaleDateString renders.
+ * Returns negative / positive / 0 per AG Grid convention.
  */
 export function compareSheetDate(filterDate: Date, cellValue: unknown): number {
   if (cellValue == null) return -1;

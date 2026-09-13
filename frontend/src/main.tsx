@@ -1,4 +1,3 @@
-// main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
@@ -16,10 +15,9 @@ interface AppConfig {
   apiUrl: string;
 }
 
-// Im Deploy schreibt die CDK diese Datei in den S3-Bucket (siehe FrontendStack).
-// Absoluter Pfad: relativ wuerde er auf /sheet/:id zu /sheet/config.json aufgeloest,
-// und CloudFront beantwortet unbekannte Pfade mit index.html und Status 200. Der
-// Fetch waere also "erfolgreich" und erst das JSON.parse wuerde scheitern.
+// Written into the S3 bucket by the CDK on deploy (see FrontendStack). The path has
+// to be absolute: on /sheet/:id a relative one resolves to /sheet/config.json, which
+// CloudFront answers with index.html and status 200.
 async function loadRemoteConfig(): Promise<AppConfig> {
   const response = await fetch('/config.json');
   if (!response.ok){
@@ -33,8 +31,8 @@ async function loadRemoteConfig(): Promise<AppConfig> {
   return config;
 }
 
-// Lokal gibt es weder CloudFront noch Cognito und damit keine config.json. Die
-// Cognito-Felder sind Platzhalter: im Bypass wird nie ein Login ausgeloest.
+// No CloudFront and no Cognito locally, so no config.json. The Cognito fields are
+// placeholders; the bypass never triggers a login.
 function devConfig(): AppConfig {
   const origin = window.location.origin;
   return {
@@ -87,15 +85,4 @@ root.render(
 }
 
 init();
-
-
-/*
-const cognitoAuthConfig = {
-  authority: "https://cognito-idp.eu-north-1.amazonaws.com/eu-north-1_rF4JS7y9l",
-  client_id: "5l7q2l2q5ic94jj0egcl9hccfk",
-  redirect_uri: "https://d84l1y8p4kdic.cloudfront.net",
-  response_type: "code",
-  scope: "phone openid email",
-};
-*/
 
